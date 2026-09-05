@@ -28,7 +28,7 @@ func writeProtocol(p config.Paths, cfg config.Config, bot roster.Bot) error {
 		Teammates:    all,
 		Tasks:        cfg.Experimental.Tasks,
 		Groups:       cfg.Experimental.Groups,
-		IncludeMCP:   false,
+		IncludeMCP:   true,
 		CrushbotPath: exe,
 		SoulMax:      cfg.SoulMaxBytes,
 	})

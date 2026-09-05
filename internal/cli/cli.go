@@ -71,6 +71,8 @@ func run(io IO, args []string) int {
 		return cmdStop(io, rest)
 	case "doctor":
 		return cmdDoctor(io, rest)
+	case "mcp":
+		return cmdMCP(io, rest)
 	default:
 		if strings.HasPrefix(verb, "-") {
 			fmt.Fprintln(io.Err, errStyle.Render("unknown flag: "+verb))

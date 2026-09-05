@@ -30,7 +30,7 @@ func TestWriteCrushrcAndHooks(t *testing.T) {
 		t.Fatalf("deny missing: %s", s)
 	}
 	if strings.Contains(s, "mcp add") {
-		t.Fatal("mcp should not be in PR 3 generator output by default")
+		t.Fatal("mcp off unless IncludeMCP")
 	}
 	if _, err := os.Stat(filepath.Join(home, "hooks", "identity.sh")); err != nil {
 		t.Fatal(err)
@@ -57,6 +57,26 @@ func TestCoderAllowsBash(t *testing.T) {
 	host, _ := os.ReadFile(filepath.Join(roster.Home(root, "dev"), "crushrc.d", "10-host.crushrc"))
 	s := string(host)
 	if !strings.Contains(s, "permissions allow bash") || strings.Contains(s, "permissions deny bash") {
+		t.Fatalf("%s", s)
+	}
+}
+
+func TestIncludeMCP(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "bots"), 0o700)
+	bot, _, err := roster.Spawn(root, roster.SpawnOpts{Slug: "coder"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Write(Options{Root: root, Bot: bot, IncludeMCP: true, CrushbotPath: "crushbot"}); err != nil {
+		t.Fatal(err)
+	}
+	host, _ := os.ReadFile(filepath.Join(roster.Home(root, "coder"), "crushrc.d", "10-host.crushrc"))
+	s := string(host)
+	if !strings.Contains(s, "mcp add crushbot-mesh") {
+		t.Fatalf("%s", s)
+	}
+	if !strings.Contains(s, "permissions allow mcp_crushbot-mesh_message_bot") {
 		t.Fatalf("%s", s)
 	}
 }
