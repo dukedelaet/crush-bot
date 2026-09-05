@@ -79,10 +79,55 @@ func TestMeshPlain(t *testing.T) {
 	}
 }
 
+func installFakeCrush(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+state="${FAKE_CRUSH_STATE:-/tmp/fake-crush-state}"
+mkdir -p "$state"
+if [[ "${1:-}" == "--version" || "${1:-}" == "-v" ]]; then echo "crush version v0.91.2"; exit 0; fi
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then echo "--yolo"; exit 0; fi
+args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --version|-v) echo "crush version v0.91.2"; exit 0 ;;
+    --help|-h) echo "--yolo"; exit 0 ;;
+    --yolo|-y|--debug|-d|--quiet|--continue|-C) shift ;;
+    --cwd|-c|--data-dir|-D|--session|-s|--model) shift 2 ;;
+    --json) shift ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+set -- "${args[@]+"${args[@]}"}"
+cmd="${1:-}"; shift || true
+case "$cmd" in
+  models) echo "fake/test-model" ;;
+  run) echo "11111111-1111-4111-8111-111111111111" > "$state/u"; echo "online" ;;
+  session)
+    sub="${1:-}"; shift || true
+    case "$sub" in
+      last) uuid=$(cat "$state/u" 2>/dev/null || echo "11111111-1111-4111-8111-111111111111")
+            printf '{"meta":{"id":"abc","uuid":"%s","title":"Untitled Session"}}\n' "$uuid" ;;
+      rename) echo "$2" > "$state/t" ;;
+      *) exit 1 ;;
+    esac ;;
+  *) echo "fake crush tui"; exit 0 ;;
+esac
+`
+	p := filepath.Join(dir, "crush")
+	if err := os.WriteFile(p, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FAKE_CRUSH_STATE", filepath.Join(dir, "st"))
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
 func TestSpawnListShowDelete(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CRUSHBOT_HOME", filepath.Join(dir, "home"))
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "cfg"))
+	installFakeCrush(t)
 	var out, errb bytes.Buffer
 	io := IO{Out: &out, Err: &errb, In: strings.NewReader("")}
 	if code := run(io, []string{"init"}); code != 0 {
@@ -114,5 +159,37 @@ func TestSpawnListShowDelete(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "home", "bots", "researcher")); !os.IsNotExist(err) {
 		t.Fatalf("still exists: %v", err)
+	}
+}
+
+func TestSayAndDoctor(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CRUSHBOT_HOME", filepath.Join(dir, "home"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "cfg"))
+	installFakeCrush(t)
+	var out, errb bytes.Buffer
+	env := IO{Out: &out, Err: &errb, In: strings.NewReader("")}
+	if code := run(env, []string{"init"}); code != 0 {
+		t.Fatal(errb.String())
+	}
+	out.Reset()
+	errb.Reset()
+	if code := run(env, []string{"spawn", "coder"}); code != 0 {
+		t.Fatalf("spawn %d %s", code, errb.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "home", "bots", "coder", "protocol.md")); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	errb.Reset()
+	if code := run(env, []string{"say", "coder", "hello"}); code != 0 {
+		t.Fatalf("say %d %s", code, errb.String())
+	}
+	if !strings.Contains(out.String(), "online") {
+		t.Fatalf("say out %s", out.String())
+	}
+	out.Reset()
+	if code := run(env, []string{"doctor", "coder"}); code != 0 {
+		t.Fatalf("doctor %d %s %s", code, out.String(), errb.String())
 	}
 }

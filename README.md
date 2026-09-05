@@ -15,13 +15,19 @@ This is a **Charm app** (Bubble Tea, Lip Gloss, Huh). It does not use cobra.
 go build -o crushbot ./cmd/crushbot
 ```
 
-## Usage (scaffold)
+## Usage
 
 ```bash
-crushbot            # Bubble Tea mesh (placeholder until the roster lands)
-crushbot --help
-crushbot init       # create $CRUSHBOT_HOME (~/.local/share/crushbot)
+crushbot init
+crushbot spawn researcher --title Researcher
+crushbot list
+crushbot say researcher "Who are you?"
+crushbot chat researcher          # Crush TUI under turn.lock
+crushbot doctor
+crushbot                          # Bubble Tea mesh
 ```
+
+Requires Crush ≥ 0.91.2 with a configured provider for `spawn` / `say` / `chat`.
 
 Override the data dir with `CRUSHBOT_HOME`. Config lives at `$XDG_CONFIG_HOME/crushbot/config.yaml`.
 

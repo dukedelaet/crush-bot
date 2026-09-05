@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -8,8 +9,10 @@ import (
 	"os/exec"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/dukedelaet/crush-bot/internal/config"
+	"github.com/dukedelaet/crush-bot/internal/crush"
 	"github.com/dukedelaet/crush-bot/internal/roster"
 	"github.com/dukedelaet/crush-bot/internal/soul"
 )
@@ -43,6 +46,16 @@ func cmdSpawn(io IO, args []string) int {
 	if err := config.EnsureHome(p); err != nil {
 		return fail(io, err)
 	}
+	bin, err := crushBin(cfg)
+	if err != nil {
+		return fail(io, err)
+	}
+	if err := crush.RequireMin(bin, cfg.MinCrushVersion); err != nil {
+		return fail(io, err)
+	}
+	if err := crush.HasProviders(bin); err != nil {
+		return fail(io, err)
+	}
 	bot, warns, err := roster.Spawn(p.Home, roster.SpawnOpts{
 		Slug:        slug,
 		Title:       *title,
@@ -60,9 +73,29 @@ func cmdSpawn(io IO, args []string) int {
 	for _, w := range warns {
 		fmt.Fprintln(io.Err, mutedStyle.Render("warning: "+w))
 	}
+	if err := writeProtocol(p, cfg, bot); err != nil {
+		return fail(io, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.TurnLockTimeout+3*time.Minute)
+	defer cancel()
+	bot, err = crush.Bootstrap(ctx, crush.RunOpts{
+		Bot:     bot,
+		Root:    p.Home,
+		Bin:     bin,
+		Timeout: cfg.TurnLockTimeout,
+		Debug:   os.Getenv("CRUSHBOT_DEBUG") == "1",
+		Yolo:    bot.Unattended == "yolo",
+	})
+	if err != nil {
+		fmt.Fprintln(io.Err, mutedStyle.Render("warning: crush bootstrap: "+err.Error()))
+		fmt.Fprintln(io.Err, mutedStyle.Render("bot files exist; crushbot doctor "+bot.Slug))
+	}
 	fmt.Fprintln(io.Out, okStyle.Render("spawned "+bot.Slug))
 	fmt.Fprintln(io.Out, "  home", roster.Home(p.Home, bot.Slug))
 	fmt.Fprintln(io.Out, "  soul", roster.SoulPath(p.Home, bot.Slug))
+	if bot.CanonicalSessionID != "" {
+		fmt.Fprintln(io.Out, "  session", bot.CanonicalSessionID)
+	}
 	return 0
 }
 
@@ -167,6 +200,9 @@ func cmdSoul(io IO, args []string) int {
 		}
 		bot, warns, err := roster.RefreshSoulHash(p.Home, slug, cfg.SoulMaxBytes)
 		if err != nil {
+			return fail(io, err)
+		}
+		if err := writeProtocol(p, cfg, bot); err != nil {
 			return fail(io, err)
 		}
 		for _, w := range warns {
