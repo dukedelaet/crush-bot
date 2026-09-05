@@ -41,4 +41,15 @@ Requires Crush ≥ 0.91.2 with a configured provider for `spawn` / `say` / `chat
 
 Override the data dir with `CRUSHBOT_HOME`. Config lives at `$XDG_CONFIG_HOME/crushbot/config.yaml`.
 
-Design: [DESIGN.md](./DESIGN.md).
+## Docs
+
+- [soul.md](docs/soul.md) — identity files
+- [mesh.md](docs/mesh.md) — DMs, tasks, groups, daemon
+- [hermes-delta.md](docs/hermes-delta.md) — what is not a wire clone
+- [DESIGN.md](./DESIGN.md) — full spec
+
+`crushbot doctor --check` exits 2 if `needs_you.jsonl` is non-empty or any inbox `failed/` has files.
+
+```bash
+scripts/e2e-mesh.sh   # fake Crush, no provider
+```

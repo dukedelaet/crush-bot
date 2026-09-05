@@ -135,8 +135,7 @@ func expireOld(home string, maxAge time.Duration) {
 		if err != nil {
 			continue
 		}
-		if env.CreatedAt.Before(cut) {
-			env.Attempt = env.Attempt // unchanged
+		if !env.CreatedAt.IsZero() && env.CreatedAt.Before(cut) {
 			_, _ = envelope.Write(envelope.FailedDir(home), env)
 			_ = os.Remove(p)
 		}

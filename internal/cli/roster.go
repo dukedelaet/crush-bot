@@ -28,15 +28,36 @@ func cmdSpawn(io IO, args []string) int {
 	cloneFrom := fs.String("clone-from", "", "copy soul and settings from slug")
 	coder := fs.Bool("coder", false, "enable bash and edit tools")
 	sandboxOff := fs.Bool("sandbox-off", false, "disable bwrap sandbox (dangerous)")
-	slug, flagArgs, err := slugThenFlags(args)
-	if err != nil {
-		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot spawn <slug> [flags]"))
-		return 2
+	var slug string
+	var flagArgs []string
+	if len(args) == 0 {
+		if !interactive() {
+			fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot spawn <slug> [flags]"))
+			return 2
+		}
+	} else {
+		var err error
+		slug, flagArgs, err = slugThenFlags(args)
+		if err != nil {
+			fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot spawn <slug> [flags]"))
+			return 2
+		}
+		if err := fs.Parse(flagArgs); err != nil {
+			return 2
+		}
+		if fs.NArg() != 0 {
+			fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot spawn <slug> [flags]"))
+			return 2
+		}
 	}
-	if err := fs.Parse(flagArgs); err != nil {
-		return 2
+	if slug == "" || (*title == "" && *desc == "" && !*coder && interactive()) {
+		s, t, d, c := slug, *title, *desc, *coder
+		if err := spawnForm(&s, &t, &d, &c); err != nil {
+			return fail(io, err)
+		}
+		slug, *title, *desc, *coder = s, t, d, c
 	}
-	if fs.NArg() != 0 {
+	if slug == "" {
 		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot spawn <slug> [flags]"))
 		return 2
 	}
@@ -294,11 +315,19 @@ func cmdDelete(io IO, args []string) int {
 		return fail(io, fmt.Errorf("unknown bot %s", slug))
 	}
 	if !*yes {
-		fmt.Fprintf(io.Out, "type %s to confirm: ", slug)
-		var got string
-		if _, err := fmt.Fscanln(io.In, &got); err != nil || got != slug {
-			fmt.Fprintln(io.Err, errStyle.Render("aborted"))
-			return 1
+		if interactive() {
+			ok, err := confirmForm("Delete bot @" + slug + "?")
+			if err != nil || !ok {
+				fmt.Fprintln(io.Err, errStyle.Render("aborted"))
+				return 1
+			}
+		} else {
+			fmt.Fprintf(io.Out, "type %s to confirm: ", slug)
+			var got string
+			if _, err := fmt.Fscanln(io.In, &got); err != nil || got != slug {
+				fmt.Fprintln(io.Err, errStyle.Render("aborted"))
+				return 1
+			}
 		}
 	}
 	if err := roster.Delete(p.Home, slug); err != nil {

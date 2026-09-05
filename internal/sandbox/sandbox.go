@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"syscall"
 
 	"github.com/dukedelaet/crush-bot/internal/roster"
 )
@@ -24,7 +25,23 @@ func Available() error {
 	if _, err := exec.LookPath("bwrap"); err == nil {
 		return nil
 	}
-	return fmt.Errorf("bwrap not found; install bubblewrap or set sandbox: off")
+	if err := landlockAvailable(); err == nil {
+		return nil
+	}
+	return fmt.Errorf("no sandbox backend (install bubblewrap, or a Landlock kernel); or set sandbox: off")
+}
+
+func Backend() string {
+	if runtime.GOOS != "linux" {
+		return "none"
+	}
+	if _, err := exec.LookPath("bwrap"); err == nil {
+		return "bwrap"
+	}
+	if landlockAvailable() == nil {
+		return "landlock"
+	}
+	return "none"
 }
 
 // Wrap returns the binary and args to exec. If sandbox is not required, returns bin/args unchanged.
@@ -35,12 +52,37 @@ func Wrap(bin string, args []string, bot roster.Bot, root string) (string, []str
 	if err := Available(); err != nil {
 		return "", nil, err
 	}
-	bwrap, err := exec.LookPath("bwrap")
-	if err != nil {
-		return "", nil, err
+	if _, err := exec.LookPath("bwrap"); err == nil {
+		bwrap, err := exec.LookPath("bwrap")
+		if err != nil {
+			return "", nil, err
+		}
+		return bwrap, BwrapArgs(bin, args, bot, root), nil
 	}
-	wrapped := BwrapArgs(bin, args, bot, root)
-	return bwrap, wrapped, nil
+	self, err := os.Executable()
+	if err != nil {
+		return "", nil, fmt.Errorf("landlock wrapper needs crushbot executable: %w", err)
+	}
+	wbin, wargs := landlockExecCmd(self, bin, args, bot, root)
+	return wbin, wargs, nil
+}
+
+// ExecLandlocked is crushbot sandbox-exec: apply Landlock then syscall.Exec Crush.
+func ExecLandlocked(crushBin, root, slug string, crushArgs []string) error {
+	bot, err := roster.Load(root, slug)
+	if err != nil {
+		return err
+	}
+	abs, err := exec.LookPath(crushBin)
+	if err != nil {
+		abs = crushBin
+	}
+	self, _ := os.Executable()
+	if err := applyLandlock(bot, root, abs, self); err != nil {
+		return err
+	}
+	argv := append([]string{abs}, crushArgs...)
+	return syscall.Exec(abs, argv, os.Environ())
 }
 
 func BwrapArgs(crushBin string, crushArgs []string, bot roster.Bot, root string) []string {

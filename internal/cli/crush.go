@@ -11,6 +11,7 @@ import (
 
 	"github.com/dukedelaet/crush-bot/internal/config"
 	"github.com/dukedelaet/crush-bot/internal/crush"
+	"github.com/dukedelaet/crush-bot/internal/daemon"
 	"github.com/dukedelaet/crush-bot/internal/protocol"
 	"github.com/dukedelaet/crush-bot/internal/roster"
 	"github.com/dukedelaet/crush-bot/internal/sandbox"
@@ -167,6 +168,16 @@ func cmdStop(io IO, args []string) int {
 }
 
 func cmdDoctor(io IO, args []string) int {
+	checkOnly := false
+	var pos []string
+	for _, a := range args {
+		if a == "--check" {
+			checkOnly = true
+			continue
+		}
+		pos = append(pos, a)
+	}
+	args = pos
 	p := config.ResolvePaths()
 	cfg, err := config.Load(p)
 	if err != nil {
@@ -199,6 +210,17 @@ func cmdDoctor(io IO, args []string) int {
 	} else {
 		check("crush >= "+cfg.MinCrushVersion, crush.RequireMin(bin, cfg.MinCrushVersion))
 		check("providers", crush.HasProviders(bin))
+	}
+	if daemon.Live(p.Home) {
+		check("daemon", nil)
+	} else {
+		fmt.Fprintln(io.Out, mutedStyle.Render("warn  daemon not running (mesh DMs stay queued)"))
+	}
+	if !cfg.Experimental.Tasks {
+		fmt.Fprintln(io.Out, mutedStyle.Render("warn  experimental.tasks is false; task MCP tools are disabled"))
+	}
+	if !cfg.Experimental.Groups {
+		fmt.Fprintln(io.Out, mutedStyle.Render("warn  experimental.groups is false; crushbot group enable to turn on"))
 	}
 	if len(slugs) == 0 {
 		fmt.Fprintln(io.Out, mutedStyle.Render("no bots"))
@@ -247,6 +269,28 @@ func cmdDoctor(io IO, args []string) int {
 				fmt.Fprintln(io.Out, mutedStyle.Render("warn  stale turn.json"))
 			}
 		}
+		proc := filepath.Join(home, "inbox", "processing")
+		if entries, err := os.ReadDir(proc); err == nil {
+			for _, e := range entries {
+				info, err := e.Info()
+				if err != nil {
+					continue
+				}
+				if time.Since(info.ModTime()) > cfg.TurnLockTimeout+60*time.Second {
+					fmt.Fprintln(io.Out, mutedStyle.Render("warn  stale processing/"+e.Name()))
+				}
+			}
+		}
+	}
+	needs, _ := os.ReadFile(filepath.Join(p.Home, "needs_you.jsonl"))
+	failedN := 0
+	bots, _ := roster.List(p.Home, true)
+	for _, b := range bots {
+		entries, _ := os.ReadDir(filepath.Join(roster.Home(p.Home, b.Slug), "inbox", "failed"))
+		failedN += len(entries)
+	}
+	if checkOnly && (len(needs) > 0 || failedN > 0) {
+		return 2
 	}
 	if !ok {
 		return 1

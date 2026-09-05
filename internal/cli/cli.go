@@ -87,6 +87,8 @@ func run(io IO, args []string) int {
 		return cmdBroadcast(io, rest)
 	case "group":
 		return cmdGroup(io, rest)
+	case "sandbox-exec":
+		return cmdSandboxExec(io, rest)
 	default:
 		if strings.HasPrefix(verb, "-") {
 			fmt.Fprintln(io.Err, errStyle.Render("unknown flag: "+verb))
@@ -177,7 +179,7 @@ func printHelp(w io.Writer) {
 	row("say", "one-shot crush run under turn.lock")
 	row("chat", "attach Crush TUI under turn.lock")
 	row("stop", "SIGINT in-flight Crush")
-	row("doctor", "check crush, soul, session, hooks")
+	row("doctor", "check crush, soul, session, hooks; --check")
 	row("daemon", "start|stop|status|logs")
 	row("inbox", "pending/archive/failed; retry <id>")
 	row("tasks", "list tasks for a bot")
