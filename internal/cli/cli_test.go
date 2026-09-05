@@ -66,6 +66,9 @@ func TestInit(t *testing.T) {
 }
 
 func TestMeshPlain(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CRUSHBOT_HOME", filepath.Join(dir, "home"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "cfg"))
 	var out, errb bytes.Buffer
 	code := run(IO{Out: &out, Err: &errb}, []string{"mesh", "--plain"})
 	if code != 0 {
@@ -73,5 +76,43 @@ func TestMeshPlain(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "no bots") {
 		t.Fatalf("out: %s", out.String())
+	}
+}
+
+func TestSpawnListShowDelete(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CRUSHBOT_HOME", filepath.Join(dir, "home"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "cfg"))
+	var out, errb bytes.Buffer
+	io := IO{Out: &out, Err: &errb, In: strings.NewReader("")}
+	if code := run(io, []string{"init"}); code != 0 {
+		t.Fatalf("init %d %s", code, errb.String())
+	}
+	out.Reset()
+	errb.Reset()
+	if code := run(io, []string{"spawn", "researcher", "--title", "Researcher"}); code != 0 {
+		t.Fatalf("spawn %d %s", code, errb.String())
+	}
+	soul := filepath.Join(dir, "home", "bots", "researcher", "soul.md")
+	if _, err := os.Stat(soul); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if code := run(io, []string{"list", "--json"}); code != 0 {
+		t.Fatalf("list %d %s", code, errb.String())
+	}
+	if !strings.Contains(out.String(), `"slug": "researcher"`) {
+		t.Fatalf("json: %s", out.String())
+	}
+	out.Reset()
+	if code := run(io, []string{"show", "researcher"}); code != 0 {
+		t.Fatal(errb.String())
+	}
+	out.Reset()
+	if code := run(io, []string{"delete", "researcher", "--yes"}); code != 0 {
+		t.Fatalf("delete %d %s", code, errb.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "home", "bots", "researcher")); !os.IsNotExist(err) {
+		t.Fatalf("still exists: %v", err)
 	}
 }

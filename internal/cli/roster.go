@@ -1,0 +1,288 @@
+package cli
+
+import (
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"text/tabwriter"
+
+	"github.com/dukedelaet/crush-bot/internal/config"
+	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/dukedelaet/crush-bot/internal/soul"
+)
+
+func cmdSpawn(io IO, args []string) int {
+	fs := flag.NewFlagSet("spawn", flag.ContinueOnError)
+	fs.SetOutput(io.Err)
+	title := fs.String("title", "", "display title")
+	desc := fs.String("description", "", "one-line role")
+	model := fs.String("model", "", "Crush model id")
+	project := fs.String("project", "", "absolute project path (advisory, not Crush cwd)")
+	cloneFrom := fs.String("clone-from", "", "copy soul and settings from slug")
+	coder := fs.Bool("coder", false, "enable bash and edit tools")
+	slug, flagArgs, err := slugThenFlags(args)
+	if err != nil {
+		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot spawn <slug> [flags]"))
+		return 2
+	}
+	if err := fs.Parse(flagArgs); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot spawn <slug> [flags]"))
+		return 2
+	}
+	p := config.ResolvePaths()
+	cfg, err := config.Load(p)
+	if err != nil {
+		return fail(io, err)
+	}
+	if err := config.EnsureHome(p); err != nil {
+		return fail(io, err)
+	}
+	bot, warns, err := roster.Spawn(p.Home, roster.SpawnOpts{
+		Slug:        slug,
+		Title:       *title,
+		Description: *desc,
+		Model:       *model,
+		Project:     *project,
+		CloneFrom:   *cloneFrom,
+		Coder:       *coder,
+		MaxBots:     cfg.MaxBots,
+		SoulMax:     cfg.SoulMaxBytes,
+	})
+	if err != nil {
+		return fail(io, err)
+	}
+	for _, w := range warns {
+		fmt.Fprintln(io.Err, mutedStyle.Render("warning: "+w))
+	}
+	fmt.Fprintln(io.Out, okStyle.Render("spawned "+bot.Slug))
+	fmt.Fprintln(io.Out, "  home", roster.Home(p.Home, bot.Slug))
+	fmt.Fprintln(io.Out, "  soul", roster.SoulPath(p.Home, bot.Slug))
+	return 0
+}
+
+func cmdList(io IO, args []string) int {
+	fs := flag.NewFlagSet("list", flag.ContinueOnError)
+	fs.SetOutput(io.Err)
+	asJSON := fs.Bool("json", false, "JSON output")
+	all := fs.Bool("all", false, "include hidden")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	p := config.ResolvePaths()
+	bots, err := roster.List(p.Home, *all)
+	if err != nil {
+		return fail(io, err)
+	}
+	if *asJSON {
+		enc := json.NewEncoder(io.Out)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(bots); err != nil {
+			return fail(io, err)
+		}
+		return 0
+	}
+	if len(bots) == 0 {
+		fmt.Fprintln(io.Out, mutedStyle.Render("no bots"))
+		return 0
+	}
+	w := tabwriter.NewWriter(io.Out, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "SLUG\tTITLE\tMODEL\tHIDDEN\tPROJECT")
+	for _, b := range bots {
+		model := b.Model
+		if model == "" {
+			model = "-"
+		}
+		proj := b.Project
+		if proj == "" {
+			proj = "-"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%v\t%s\n", b.Slug, b.Title, model, b.Hidden, proj)
+	}
+	if err := w.Flush(); err != nil {
+		return fail(io, err)
+	}
+	return 0
+}
+
+func cmdShow(io IO, args []string) int {
+	if len(args) != 1 {
+		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot show <slug>"))
+		return 2
+	}
+	p := config.ResolvePaths()
+	bot, err := roster.Load(p.Home, args[0])
+	if err != nil {
+		return fail(io, err)
+	}
+	fmt.Fprintf(io.Out, "%s  %s\n", cmdStyle.Render(bot.Slug), bot.Title)
+	if bot.Description != "" {
+		fmt.Fprintln(io.Out, bot.Description)
+	}
+	fmt.Fprintln(io.Out, mutedStyle.Render("soul     "+roster.SoulPath(p.Home, bot.Slug)))
+	fmt.Fprintln(io.Out, mutedStyle.Render("model    "+emptyDash(bot.Model)))
+	fmt.Fprintln(io.Out, mutedStyle.Render("project  "+emptyDash(bot.Project)))
+	fmt.Fprintln(io.Out, mutedStyle.Render("hidden   "+fmt.Sprint(bot.Hidden)))
+	fmt.Fprintln(io.Out, mutedStyle.Render("coder    "+fmt.Sprintf("bash=%v edit=%v", bot.Tools.Bash, bot.Tools.Edit)))
+	return 0
+}
+
+func cmdSoul(io IO, args []string) int {
+	fs := flag.NewFlagSet("soul", flag.ContinueOnError)
+	fs.SetOutput(io.Err)
+	edit := fs.Bool("edit", false, "open in $EDITOR")
+	slug, flagArgs, err := slugThenFlags(args)
+	if err != nil {
+		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot soul <slug> [--edit]"))
+		return 2
+	}
+	if err := fs.Parse(flagArgs); err != nil {
+		return 2
+	}
+	p := config.ResolvePaths()
+	cfg, err := config.Load(p)
+	if err != nil {
+		return fail(io, err)
+	}
+	path := roster.SoulPath(p.Home, slug)
+	if _, err := roster.Load(p.Home, slug); err != nil {
+		return fail(io, err)
+	}
+	if *edit {
+		editor := os.Getenv("EDITOR")
+		if editor == "" {
+			editor = "vi"
+		}
+		cmd := exec.Command(editor, path)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fail(io, err)
+		}
+		bot, warns, err := roster.RefreshSoulHash(p.Home, slug, cfg.SoulMaxBytes)
+		if err != nil {
+			return fail(io, err)
+		}
+		for _, w := range warns {
+			fmt.Fprintln(io.Err, mutedStyle.Render("warning: "+w))
+		}
+		fmt.Fprintln(io.Out, okStyle.Render("updated soul "+bot.Slug))
+		return 0
+	}
+	body, err := soul.Read(path, cfg.SoulMaxBytes)
+	if err != nil {
+		return fail(io, err)
+	}
+	fmt.Fprint(io.Out, body)
+	if !strings.HasSuffix(body, "\n") {
+		fmt.Fprintln(io.Out)
+	}
+	return 0
+}
+
+func cmdHide(io IO, args []string, hidden bool) int {
+	if len(args) != 1 {
+		verb := "hide"
+		if !hidden {
+			verb = "unhide"
+		}
+		fmt.Fprintf(io.Err, "%s\n", errStyle.Render("usage: crushbot "+verb+" <slug>"))
+		return 2
+	}
+	p := config.ResolvePaths()
+	bot, err := roster.SetHidden(p.Home, args[0], hidden)
+	if err != nil {
+		return fail(io, err)
+	}
+	state := "hidden"
+	if !hidden {
+		state = "visible"
+	}
+	fmt.Fprintln(io.Out, okStyle.Render(bot.Slug+" "+state))
+	return 0
+}
+
+func cmdClone(io IO, args []string) int {
+	if len(args) != 2 {
+		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot clone <src> <dst>"))
+		return 2
+	}
+	p := config.ResolvePaths()
+	cfg, err := config.Load(p)
+	if err != nil {
+		return fail(io, err)
+	}
+	bot, warns, err := roster.Clone(p.Home, args[0], args[1], cfg.MaxBots, cfg.SoulMaxBytes)
+	if err != nil {
+		return fail(io, err)
+	}
+	for _, w := range warns {
+		fmt.Fprintln(io.Err, mutedStyle.Render("warning: "+w))
+	}
+	fmt.Fprintln(io.Out, okStyle.Render("cloned "+args[0]+" → "+bot.Slug))
+	return 0
+}
+
+func cmdDelete(io IO, args []string) int {
+	fs := flag.NewFlagSet("delete", flag.ContinueOnError)
+	fs.SetOutput(io.Err)
+	yes := fs.Bool("yes", false, "do not prompt")
+	slug, flagArgs, err := slugThenFlags(args)
+	if err != nil {
+		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot delete <slug> [--yes]"))
+		return 2
+	}
+	if err := fs.Parse(flagArgs); err != nil {
+		return 2
+	}
+	p := config.ResolvePaths()
+	if !roster.Exists(p.Home, slug) {
+		return fail(io, fmt.Errorf("unknown bot %s", slug))
+	}
+	if !*yes {
+		fmt.Fprintf(io.Out, "type %s to confirm: ", slug)
+		var got string
+		if _, err := fmt.Fscanln(io.In, &got); err != nil || got != slug {
+			fmt.Fprintln(io.Err, errStyle.Render("aborted"))
+			return 1
+		}
+	}
+	if err := roster.Delete(p.Home, slug); err != nil {
+		return fail(io, err)
+	}
+	fmt.Fprintln(io.Out, okStyle.Render("deleted "+slug))
+	return 0
+}
+
+func fail(io IO, err error) int {
+	fmt.Fprintln(io.Err, errStyle.Render(err.Error()))
+	return 1
+}
+
+func emptyDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
+}
+
+// slugThenFlags supports `cmd <slug> --flag` (stdlib flag stops at the first non-flag).
+func slugThenFlags(args []string) (slug string, flags []string, err error) {
+	if len(args) == 0 {
+		return "", nil, fmt.Errorf("missing slug")
+	}
+	if !strings.HasPrefix(args[0], "-") {
+		return args[0], args[1:], nil
+	}
+	slug = args[len(args)-1]
+	if strings.HasPrefix(slug, "-") {
+		return "", nil, fmt.Errorf("missing slug")
+	}
+	return slug, args[:len(args)-1], nil
+}

@@ -6,6 +6,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
+	"github.com/dukedelaet/crush-bot/internal/roster"
 )
 
 var (
@@ -55,8 +57,21 @@ func (m Model) View() tea.View {
 	fmt.Fprintln(&b, titleStyle.Render("crushbot"))
 	fmt.Fprintln(&b, mutedStyle.Render("Hermes-style bot roster · Crush backend"))
 	fmt.Fprintln(&b)
-	fmt.Fprintln(&b, "No bots yet.")
-	fmt.Fprintln(&b, mutedStyle.Render("Roster spawn lands next. Then: crushbot spawn <slug>"))
+	bots, err := roster.List(m.home, false)
+	if err != nil {
+		fmt.Fprintln(&b, err.Error())
+	} else if len(bots) == 0 {
+		fmt.Fprintln(&b, "No bots yet.")
+		fmt.Fprintln(&b, mutedStyle.Render("crushbot spawn <slug>"))
+	} else {
+		for _, bot := range bots {
+			line := keyStyle.Render(bot.Slug) + "  " + bot.Title
+			if bot.Description != "" {
+				line += "  " + mutedStyle.Render(bot.Description)
+			}
+			fmt.Fprintln(&b, line)
+		}
+	}
 	if m.home != "" {
 		fmt.Fprintln(&b)
 		fmt.Fprintln(&b, mutedStyle.Render("home  "+m.home))

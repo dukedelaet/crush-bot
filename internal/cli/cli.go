@@ -47,6 +47,22 @@ func run(io IO, args []string) int {
 		return cmdInit(io, rest)
 	case "mesh":
 		return cmdMesh(io, rest)
+	case "spawn":
+		return cmdSpawn(io, rest)
+	case "list":
+		return cmdList(io, rest)
+	case "show":
+		return cmdShow(io, rest)
+	case "soul":
+		return cmdSoul(io, rest)
+	case "hide":
+		return cmdHide(io, rest, true)
+	case "unhide":
+		return cmdHide(io, rest, false)
+	case "clone":
+		return cmdClone(io, rest)
+	case "delete":
+		return cmdDelete(io, rest)
 	default:
 		if strings.HasPrefix(verb, "-") {
 			fmt.Fprintln(io.Err, errStyle.Render("unknown flag: "+verb))
@@ -87,8 +103,7 @@ func cmdMesh(io IO, args []string) int {
 		}
 	}
 	if plain || !isTTY(os.Stdout) {
-		fmt.Fprintln(io.Out, mutedStyle.Render("no bots"))
-		return 0
+		return cmdList(io, nil)
 	}
 	return cmdDefault(io)
 }
@@ -127,11 +142,19 @@ func printHelp(w io.Writer) {
 		fmt.Fprintf(w, "  %s  %s\n", cmdStyle.Render(fmt.Sprintf("%-10s", name)), desc)
 	}
 	row("init", "create CRUSHBOT_HOME and config")
+	row("spawn", "create a bot (required soul.md)")
+	row("list", "roster table; --json --all")
+	row("show", "inspect one bot")
+	row("soul", "print or --edit soul.md")
+	row("hide", "hide a bot from default list")
+	row("unhide", "unhide a bot")
+	row("clone", "copy a bot to a new slug")
+	row("delete", "remove a bot home (--yes to skip confirm)")
 	row("mesh", "mesh TUI (same as no args); --plain for a table")
 	row("help", "show this help")
 	row("version", "print version")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, mutedStyle.Render("Coming next: spawn, list, say, chat, daemon"))
+	fmt.Fprintln(w, mutedStyle.Render("Coming next: say, chat, daemon, mesh MCP"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Env:")
 	fmt.Fprintln(w, "  CRUSHBOT_HOME     "+mutedStyle.Render("data dir (default: $XDG_DATA_HOME/crushbot)"))

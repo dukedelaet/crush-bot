@@ -16,18 +16,18 @@ const (
 
 // Config is the global crushbot config (XDG + optional copy under CRUSHBOT_HOME).
 type Config struct {
-	CrushPath        string        `yaml:"crush_path"`
-	MinCrushVersion  string        `yaml:"min_crush_version"`
-	MaxParallel      int           `yaml:"max_parallel"`
-	MaxHops          int           `yaml:"max_hops"`
-	TurnLockTimeout  time.Duration `yaml:"turn_lock_timeout"`
-	MaxBots          int           `yaml:"max_bots"`
-	SoulMaxBytes     int           `yaml:"soul_max_bytes"`
-	MessageMaxChars  int           `yaml:"message_max_chars"`
-	CoalesceInbox    int           `yaml:"coalesce_inbox"`
-	ClaimTTLS        int           `yaml:"claim_ttl_s"`
-	QueuedExpire     time.Duration `yaml:"queued_expire"`
-	Experimental     Experimental  `yaml:"experimental"`
+	CrushPath       string        `yaml:"crush_path"`
+	MinCrushVersion string        `yaml:"min_crush_version"`
+	MaxParallel     int           `yaml:"max_parallel"`
+	MaxHops         int           `yaml:"max_hops"`
+	TurnLockTimeout time.Duration `yaml:"turn_lock_timeout"`
+	MaxBots         int           `yaml:"max_bots"`
+	SoulMaxBytes    int           `yaml:"soul_max_bytes"`
+	MessageMaxChars int           `yaml:"message_max_chars"`
+	CoalesceInbox   int           `yaml:"coalesce_inbox"`
+	ClaimTTLS       int           `yaml:"claim_ttl_s"`
+	QueuedExpire    time.Duration `yaml:"queued_expire"`
+	Experimental    Experimental  `yaml:"experimental"`
 }
 
 type Experimental struct {
