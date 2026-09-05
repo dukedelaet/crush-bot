@@ -48,6 +48,7 @@ type SpawnOpts struct {
 	Project     string
 	CloneFrom   string
 	Coder       bool
+	Sandbox     string
 	MaxBots     int
 	SoulMax     int
 }
@@ -293,6 +294,9 @@ func Spawn(root string, opts SpawnOpts) (Bot, []string, error) {
 		},
 		CloneFrom:  cloneFrom,
 		SoulSHA256: soul.SHA256(body),
+	}
+	if opts.Sandbox != "" {
+		bot.Sandbox = opts.Sandbox
 	}
 	if err := Save(root, bot); err != nil {
 		return Bot{}, warns, err

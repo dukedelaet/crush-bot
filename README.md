@@ -30,7 +30,12 @@ crushbot                          # Bubble Tea mesh
 ```bash
 ./crushbot daemon start   # wakes bots that have pending DMs
 ./crushbot inbox
+./crushbot group enable
+./crushbot group create review researcher coder
+./crushbot group chat review --plain
 ```
+
+`--coder` bots are wrapped in `bwrap` on Linux (pass `--sandbox-off` to override).
 
 Requires Crush ≥ 0.91.2 with a configured provider for `spawn` / `say` / `chat`. The daemon is required for mesh delivery (`message_bot` → inbox → `crush run`).
 

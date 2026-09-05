@@ -161,6 +161,22 @@ func toolDefs() []map[string]any {
 			},
 		},
 		{
+			"name":        "group_say",
+			"description": "Public line in the current group room. Not a private DM.",
+			"inputSchema": map[string]any{
+				"type":     "object",
+				"required": []string{"text"},
+				"properties": map[string]any{
+					"text": map[string]any{"type": "string"},
+				},
+			},
+		},
+		{
+			"name":        "group_pass",
+			"description": "Skip this group round (PASS).",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
 			"name":        "task_delegate",
 			"description": "Create a child task and wait. Parent becomes waiting_child.",
 			"inputSchema": map[string]any{
@@ -243,6 +259,16 @@ func callTool(id Identity, name string, args json.RawMessage) (string, bool) {
 		}
 		_ = json.Unmarshal(args, &a)
 		r := TaskDelegate(id, a.ID, a.Target, a.Title, a.Body)
+		return marshal(r), r.Reason != ""
+	case "group_say":
+		var a struct {
+			Text string `json:"text"`
+		}
+		_ = json.Unmarshal(args, &a)
+		r := GroupSay(id, a.Text)
+		return marshal(r), r.Reason != ""
+	case "group_pass":
+		r := GroupPass(id)
 		return marshal(r), r.Reason != ""
 	default:
 		return fmt.Sprintf(`{"reason":"missing_config","error":"unknown tool %s"}`, name), true

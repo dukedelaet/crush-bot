@@ -85,6 +85,8 @@ func run(io IO, args []string) int {
 		return cmdMention(io, rest)
 	case "broadcast":
 		return cmdBroadcast(io, rest)
+	case "group":
+		return cmdGroup(io, rest)
 	default:
 		if strings.HasPrefix(verb, "-") {
 			fmt.Fprintln(io.Err, errStyle.Render("unknown flag: "+verb))
@@ -182,11 +184,12 @@ func printHelp(w io.Writer) {
 	row("task", "show|retry|unblock <id>")
 	row("mention", "ask <bot> to message @target")
 	row("broadcast", "queue a user DM to every visible bot")
+	row("group", "enable|create|list|chat|disband")
 	row("mesh", "mesh TUI (same as no args); --plain for a table")
 	row("help", "show this help")
 	row("version", "print version")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, mutedStyle.Render("Coming next: groups, sandbox"))
+	fmt.Fprintln(w, mutedStyle.Render("Crush ≥ 0.91.2 · experimental.groups via crushbot group enable"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Env:")
 	fmt.Fprintln(w, "  CRUSHBOT_HOME     "+mutedStyle.Render("data dir (default: $XDG_DATA_HOME/crushbot)"))

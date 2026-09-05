@@ -214,3 +214,36 @@ func TestMentionBroadcast(t *testing.T) {
 		t.Fatalf("broadcast %d %s", code, errb.String())
 	}
 }
+
+func TestGroupEnableCreate(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CRUSHBOT_HOME", filepath.Join(dir, "home"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "cfg"))
+	installFakeCrush(t)
+	var out, errb bytes.Buffer
+	env := IO{Out: &out, Err: &errb, In: strings.NewReader("")}
+	run(env, []string{"init"})
+	run(env, []string{"spawn", "alpha"})
+	run(env, []string{"spawn", "beta"})
+	out.Reset()
+	errb.Reset()
+	if code := run(env, []string{"group", "create", "review", "alpha", "beta"}); code == 0 {
+		t.Fatal("create should fail before enable")
+	}
+	out.Reset()
+	errb.Reset()
+	if code := run(env, []string{"group", "enable"}); code != 0 {
+		t.Fatalf("enable %d %s", code, errb.String())
+	}
+	out.Reset()
+	if code := run(env, []string{"group", "create", "review", "alpha", "beta"}); code != 0 {
+		t.Fatalf("create %d %s", code, errb.String())
+	}
+	out.Reset()
+	if code := run(env, []string{"group", "list"}); code != 0 {
+		t.Fatal(errb.String())
+	}
+	if !strings.Contains(out.String(), "review") {
+		t.Fatalf("%s", out.String())
+	}
+}

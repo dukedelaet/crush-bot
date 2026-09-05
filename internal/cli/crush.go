@@ -13,6 +13,7 @@ import (
 	"github.com/dukedelaet/crush-bot/internal/crush"
 	"github.com/dukedelaet/crush-bot/internal/protocol"
 	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/dukedelaet/crush-bot/internal/sandbox"
 	"github.com/dukedelaet/crush-bot/internal/soul"
 )
 
@@ -233,6 +234,11 @@ func cmdDoctor(io IO, args []string) int {
 			fmt.Fprintln(io.Out, mutedStyle.Render("warn  no canonical session uuid"))
 		} else {
 			check("session "+bot.CanonicalSessionID, nil)
+		}
+		if sandbox.Required(bot) {
+			check("sandbox", sandbox.Available())
+		} else if bot.Sandbox == "off" && (bot.Tools.Bash || bot.Tools.Edit) {
+			fmt.Fprintln(io.Out, mutedStyle.Render("warn  sandbox:off"))
 		}
 		if t, err := crush.ReadTurn(home); err == nil {
 			if crush.PIDAlive(t.CrushPID) {

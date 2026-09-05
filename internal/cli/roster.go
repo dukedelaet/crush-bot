@@ -14,6 +14,7 @@ import (
 	"github.com/dukedelaet/crush-bot/internal/config"
 	"github.com/dukedelaet/crush-bot/internal/crush"
 	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/dukedelaet/crush-bot/internal/sandbox"
 	"github.com/dukedelaet/crush-bot/internal/soul"
 )
 
@@ -26,6 +27,7 @@ func cmdSpawn(io IO, args []string) int {
 	project := fs.String("project", "", "absolute project path (advisory, not Crush cwd)")
 	cloneFrom := fs.String("clone-from", "", "copy soul and settings from slug")
 	coder := fs.Bool("coder", false, "enable bash and edit tools")
+	sandboxOff := fs.Bool("sandbox-off", false, "disable bwrap sandbox (dangerous)")
 	slug, flagArgs, err := slugThenFlags(args)
 	if err != nil {
 		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot spawn <slug> [flags]"))
@@ -56,6 +58,15 @@ func cmdSpawn(io IO, args []string) int {
 	if err := crush.HasProviders(bin); err != nil {
 		return fail(io, err)
 	}
+	sandboxMode := ""
+	if *sandboxOff {
+		sandboxMode = "off"
+	}
+	if *coder && !*sandboxOff {
+		if err := sandbox.Available(); err != nil {
+			return fail(io, fmt.Errorf("%w (or pass --sandbox-off)", err))
+		}
+	}
 	bot, warns, err := roster.Spawn(p.Home, roster.SpawnOpts{
 		Slug:        slug,
 		Title:       *title,
@@ -64,6 +75,7 @@ func cmdSpawn(io IO, args []string) int {
 		Project:     *project,
 		CloneFrom:   *cloneFrom,
 		Coder:       *coder,
+		Sandbox:     sandboxMode,
 		MaxBots:     cfg.MaxBots,
 		SoulMax:     cfg.SoulMaxBytes,
 	})

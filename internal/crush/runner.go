@@ -15,6 +15,7 @@ import (
 
 	"github.com/dukedelaet/crush-bot/internal/lock"
 	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/dukedelaet/crush-bot/internal/sandbox"
 )
 
 type Result struct {
@@ -33,6 +34,9 @@ type RunOpts struct {
 	Timeout    time.Duration
 	Debug      bool
 	Yolo       bool
+	SessionID  string // if set, overrides bot.CanonicalSessionID
+	NoSession  bool   // omit --session (mint a new Crush session)
+	GroupID    string
 	Stdin      io.Reader
 	Stdout     io.Writer
 	Stderr     io.Writer
@@ -65,8 +69,8 @@ func runArgs(opts RunOpts) []string {
 		"--data-dir", dataDir(opts),
 		"--quiet",
 	)
-	if opts.Bot.CanonicalSessionID != "" {
-		args = append(args, "--session", opts.Bot.CanonicalSessionID)
+	if sid := sessionOf(opts); sid != "" {
+		args = append(args, "--session", sid)
 	}
 	if opts.Bot.Model != "" {
 		args = append(args, "--model", opts.Bot.Model)
@@ -86,10 +90,20 @@ func chatArgs(opts RunOpts) []string {
 		"--cwd", BotHome(opts),
 		"--data-dir", dataDir(opts),
 	)
-	if opts.Bot.CanonicalSessionID != "" {
-		args = append(args, "--session", opts.Bot.CanonicalSessionID)
+	if sid := sessionOf(opts); sid != "" {
+		args = append(args, "--session", sid)
 	}
 	return args
+}
+
+func sessionOf(opts RunOpts) string {
+	if opts.NoSession {
+		return ""
+	}
+	if opts.SessionID != "" {
+		return opts.SessionID
+	}
+	return opts.Bot.CanonicalSessionID
 }
 
 func acquireTurn(opts RunOpts) (*lock.Lock, error) {
@@ -144,7 +158,7 @@ func Run(ctx context.Context, opts RunOpts) (Result, error) {
 	}
 	turn := Turn{
 		Bot:        opts.Bot.Slug,
-		SessionID:  opts.Bot.CanonicalSessionID,
+		SessionID:  sessionOf(opts),
 		Kind:       kind,
 		Trace:      trace,
 		Inbound:    opts.Inbound,
@@ -153,12 +167,20 @@ func Run(ctx context.Context, opts RunOpts) (Result, error) {
 		MaxSends:   MaxSendsFor(kind),
 		MaxHops:    opts.MaxHops,
 	}
+	if opts.GroupID != "" {
+		gid := opts.GroupID
+		turn.GroupID = &gid
+	}
 	if err := WriteTurn(home, turn); err != nil {
 		return Result{}, err
 	}
 	defer RemoveTurn(home)
 
-	cmd := exec.CommandContext(ctx, opts.Bin, runArgs(opts)...)
+	bin, args, err := sandbox.Wrap(opts.Bin, runArgs(opts), opts.Bot, opts.Root)
+	if err != nil {
+		return Result{}, err
+	}
+	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = home
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -216,7 +238,11 @@ func Chat(ctx context.Context, opts RunOpts) error {
 	}
 	defer RemoveTurn(home)
 
-	cmd := exec.CommandContext(ctx, opts.Bin, chatArgs(opts)...)
+	bin, args, err := sandbox.Wrap(opts.Bin, chatArgs(opts), opts.Bot, opts.Root)
+	if err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = home
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
