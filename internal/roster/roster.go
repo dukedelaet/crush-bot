@@ -38,6 +38,7 @@ type Bot struct {
 	Tools                 Tools             `yaml:"tools" json:"tools"`
 	CloneFrom             *string           `yaml:"clone_from" json:"clone_from"`
 	SoulSHA256            string            `yaml:"soul_sha256" json:"soul_sha256"`
+	KeepAlive             bool              `yaml:"keepalive" json:"keepalive"`
 }
 
 type SpawnOpts struct {
@@ -49,6 +50,7 @@ type SpawnOpts struct {
 	CloneFrom   string
 	Coder       bool
 	Sandbox     string
+	KeepAlive   bool
 	MaxBots     int
 	SoulMax     int
 }
@@ -294,6 +296,7 @@ func Spawn(root string, opts SpawnOpts) (Bot, []string, error) {
 		},
 		CloneFrom:  cloneFrom,
 		SoulSHA256: soul.SHA256(body),
+		KeepAlive:  opts.KeepAlive,
 	}
 	if opts.Sandbox != "" {
 		bot.Sandbox = opts.Sandbox

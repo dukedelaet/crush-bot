@@ -37,6 +37,13 @@ crushbot                          # Bubble Tea mesh
 
 `--coder` bots are wrapped in `bwrap` on Linux (pass `--sandbox-off` to override).
 
+```bash
+crushbot spawn coder --coder --keepalive   # warm crush server (unix socket)
+crushbot keepalive start --all
+crushbot daemon install                    # systemd --user unit
+crushbot group chat review                 # Bubble Tea room ( --plain for scripts )
+```
+
 Requires Crush ≥ 0.91.2 with a configured provider for `spawn` / `say` / `chat`. The daemon is required for mesh delivery (`message_bot` → inbox → `crush run`).
 
 Override the data dir with `CRUSHBOT_HOME`. Config lives at `$XDG_CONFIG_HOME/crushbot/config.yaml`.

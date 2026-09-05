@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/dukedelaet/crush-bot/internal/config"
+	"github.com/dukedelaet/crush-bot/internal/crush"
 	"github.com/dukedelaet/crush-bot/internal/daemon"
 	"github.com/dukedelaet/crush-bot/internal/envelope"
 	"github.com/dukedelaet/crush-bot/internal/roster"
@@ -19,7 +20,7 @@ import (
 
 func cmdDaemon(io IO, args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot daemon start|stop|status|logs|run"))
+		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot daemon start|stop|status|logs|install|uninstall|run"))
 		return 2
 	}
 	switch args[0] {
@@ -33,8 +34,12 @@ func cmdDaemon(io IO, args []string) int {
 		return daemonLogs(io)
 	case "run":
 		return daemonRun(io)
+	case "install":
+		return daemonInstall(io)
+	case "uninstall":
+		return daemonUninstall(io)
 	default:
-		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot daemon start|stop|status|logs|run"))
+		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot daemon start|stop|status|logs|install|uninstall|run"))
 		return 2
 	}
 }
@@ -61,7 +66,34 @@ func daemonStart(io IO) int {
 	}
 	fmt.Fprintln(io.Out, okStyle.Render(fmt.Sprintf("daemon started pid %d", cmd.Process.Pid)))
 	_ = cmd.Process.Release()
+	startKeepaliveBots(io)
 	return 0
+}
+
+func startKeepaliveBots(io IO) {
+	p := config.ResolvePaths()
+	cfg, err := config.Load(p)
+	if err != nil {
+		return
+	}
+	bin, err := crushBin(cfg)
+	if err != nil {
+		return
+	}
+	bots, err := roster.List(p.Home, true)
+	if err != nil {
+		return
+	}
+	for _, b := range bots {
+		if !b.KeepAlive {
+			continue
+		}
+		if err := crush.StartServer(bin, b, p.Home); err != nil {
+			fmt.Fprintln(io.Err, mutedStyle.Render("keepalive @"+b.Slug+": "+err.Error()))
+			continue
+		}
+		fmt.Fprintln(io.Out, mutedStyle.Render("keepalive @"+b.Slug))
+	}
 }
 
 func daemonStop(io IO) int {

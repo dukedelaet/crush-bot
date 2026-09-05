@@ -12,6 +12,7 @@ import (
 	"github.com/dukedelaet/crush-bot/internal/group"
 	"github.com/dukedelaet/crush-bot/internal/protocol"
 	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/dukedelaet/crush-bot/internal/ui"
 )
 
 func cmdGroup(io IO, args []string) int {
@@ -104,12 +105,15 @@ func cmdGroup(io IO, args []string) int {
 		if err != nil {
 			return fail(io, err)
 		}
-		if !plain && isTTY(os.Stdout) {
-			fmt.Fprintln(io.Out, mutedStyle.Render("plain prompt loop (host TUI). Ctrl-D to exit. Room continues in daemon if running."))
-		}
 		bin, err := crushBin(cfg)
 		if err != nil {
 			return fail(io, err)
+		}
+		if !plain && isTTY(os.Stdout) && isTTY(os.Stdin) {
+			if err := ui.RunGroup(p.Home, bin, cfg, g); err != nil {
+				return fail(io, err)
+			}
+			return 0
 		}
 		sc := bufio.NewScanner(io.In)
 		if io.In == nil {

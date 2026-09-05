@@ -94,7 +94,7 @@ while [[ $# -gt 0 ]]; do
     --version|-v) echo "crush version v0.91.2"; exit 0 ;;
     --help|-h) echo "--yolo"; exit 0 ;;
     --yolo|-y|--debug|-d|--quiet|--continue|-C) shift ;;
-    --cwd|-c|--data-dir|-D|--session|-s|--model) shift 2 ;;
+    --cwd|-c|--data-dir|-D|--session|-s|--model|--host|-H) shift 2 ;;
     --json) shift ;;
     *) args+=("$1"); shift ;;
   esac
@@ -104,12 +104,14 @@ cmd="${1:-}"; shift || true
 case "$cmd" in
   models) echo "fake/test-model" ;;
   run) echo "11111111-1111-4111-8111-111111111111" > "$state/u"; echo "online" ;;
+  server) trap 'exit 0' TERM INT; while true; do sleep 0.2; done ;;
   session)
     sub="${1:-}"; shift || true
     case "$sub" in
       last) uuid=$(cat "$state/u" 2>/dev/null || echo "11111111-1111-4111-8111-111111111111")
             printf '{"meta":{"id":"abc","uuid":"%s","title":"Untitled Session"}}\n' "$uuid" ;;
       rename) echo "$2" > "$state/t" ;;
+      show) printf '%s\n' '{"messages":[{"role":"assistant","parts":[{"type":"text","text":"online"}]}]}' ;;
       *) exit 1 ;;
     esac ;;
   *) echo "fake crush tui"; exit 0 ;;
@@ -246,4 +248,21 @@ func TestGroupEnableCreate(t *testing.T) {
 	if !strings.Contains(out.String(), "review") {
 		t.Fatalf("%s", out.String())
 	}
+}
+
+func TestKeepaliveStartStop(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CRUSHBOT_HOME", filepath.Join(dir, "home"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "cfg"))
+	installFakeCrush(t)
+	var out, errb bytes.Buffer
+	env := IO{Out: &out, Err: &errb, In: strings.NewReader("")}
+	run(env, []string{"init"})
+	run(env, []string{"spawn", "hot", "--keepalive"})
+	out.Reset()
+	errb.Reset()
+	if code := run(env, []string{"keepalive", "status", "hot"}); code != 0 && !strings.Contains(out.String(), "hot") {
+		t.Fatalf("status %d %s %s", code, out.String(), errb.String())
+	}
+	run(env, []string{"keepalive", "stop", "hot"})
 }

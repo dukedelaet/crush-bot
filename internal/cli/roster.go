@@ -28,6 +28,7 @@ func cmdSpawn(io IO, args []string) int {
 	cloneFrom := fs.String("clone-from", "", "copy soul and settings from slug")
 	coder := fs.Bool("coder", false, "enable bash and edit tools")
 	sandboxOff := fs.Bool("sandbox-off", false, "disable bwrap sandbox (dangerous)")
+	keepAlive := fs.Bool("keepalive", false, "keep a crush server warm for this bot")
 	var slug string
 	var flagArgs []string
 	if len(args) == 0 {
@@ -97,6 +98,7 @@ func cmdSpawn(io IO, args []string) int {
 		CloneFrom:   *cloneFrom,
 		Coder:       *coder,
 		Sandbox:     sandboxMode,
+		KeepAlive:   *keepAlive,
 		MaxBots:     cfg.MaxBots,
 		SoulMax:     cfg.SoulMaxBytes,
 	})
@@ -128,6 +130,13 @@ func cmdSpawn(io IO, args []string) int {
 	fmt.Fprintln(io.Out, "  soul", roster.SoulPath(p.Home, bot.Slug))
 	if bot.CanonicalSessionID != "" {
 		fmt.Fprintln(io.Out, "  session", bot.CanonicalSessionID)
+	}
+	if bot.KeepAlive {
+		if err := crush.StartServer(bin, bot, p.Home); err != nil {
+			fmt.Fprintln(io.Err, mutedStyle.Render("warning: keepalive: "+err.Error()))
+		} else {
+			fmt.Fprintln(io.Out, "  keepalive", crush.HostURL(roster.Home(p.Home, bot.Slug)))
+		}
 	}
 	return 0
 }

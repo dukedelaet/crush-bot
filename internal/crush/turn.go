@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 )
@@ -126,6 +127,27 @@ func PIDAlive(pid int) bool {
 	if pid <= 0 {
 		return false
 	}
-	err := syscall.Kill(pid, 0)
-	return err == nil
+	b, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err == nil {
+		state := procState(b)
+		if state == 'Z' || state == 0 {
+			return false
+		}
+		return state != 0
+	}
+	return syscall.Kill(pid, 0) == nil
+}
+
+func procState(stat []byte) byte {
+	// pid (comm) state ...
+	r := -1
+	for i := 0; i < len(stat); i++ {
+		if stat[i] == ')' {
+			r = i
+		}
+	}
+	if r >= 0 && r+2 < len(stat) {
+		return stat[r+2]
+	}
+	return 0
 }

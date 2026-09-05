@@ -48,6 +48,22 @@ Public lines are `group_say`. `message_bot` in a group round is a private DM and
 
 ## Human routing
 
+Keep a Crush server warm (skips spawn tax on the next `say`/wake):
+
+```bash
+crushbot spawn coder --keepalive
+crushbot keepalive start coder
+```
+
+`crush run` then uses `--host unix://$BOT_HOME/crush.sock`. The daemon still holds `turn.lock` so prompts stay serial.
+
+Install the mesh courier as a user service:
+
+```bash
+crushbot daemon install    # ~/.config/systemd/user/crushbot.service
+crushbot daemon uninstall
+```
+
 Crush’s TUI has no roster `@`. Use crushbot:
 
 | Command | Effect |

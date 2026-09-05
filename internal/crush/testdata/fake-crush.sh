@@ -27,6 +27,7 @@ while [[ $# -gt 0 ]]; do
     --cwd|-c) cwd="$2"; shift 2 ;;
     --data-dir|-D) datadir="$2"; shift 2 ;;
     --session|-s) session="$2"; shift 2 ;;
+    --host|-H) shift 2 ;;
     --quiet) shift ;;
     --model) shift 2 ;;
     --json) args+=("$1"); shift ;;
@@ -47,6 +48,11 @@ case "$cmd" in
   models)
     echo "fake/test-model"
     exit 0
+    ;;
+  server)
+    echo $$ > "$state/server.pid"
+    trap 'exit 0' TERM INT
+    while true; do sleep 0.2; done
     ;;
   run)
     uuid="11111111-1111-4111-8111-111111111111"

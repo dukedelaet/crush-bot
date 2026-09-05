@@ -257,6 +257,13 @@ func cmdDoctor(io IO, args []string) int {
 		} else {
 			check("session "+bot.CanonicalSessionID, nil)
 		}
+		if bot.KeepAlive {
+			if crush.ServerLive(home) {
+				check("keepalive "+crush.HostURL(home), nil)
+			} else {
+				fmt.Fprintln(io.Out, mutedStyle.Render("warn  keepalive down; crushbot keepalive start "+slug))
+			}
+		}
 		if sandbox.Required(bot) {
 			check("sandbox", sandbox.Available())
 		} else if bot.Sandbox == "off" && (bot.Tools.Bash || bot.Tools.Edit) {

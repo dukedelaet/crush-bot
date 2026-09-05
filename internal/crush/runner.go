@@ -69,6 +69,9 @@ func runArgs(opts RunOpts) []string {
 		"--data-dir", dataDir(opts),
 		"--quiet",
 	)
+	if host := clientHost(opts); host != "" {
+		args = append(args, "--host", host)
+	}
 	if sid := sessionOf(opts); sid != "" {
 		args = append(args, "--session", sid)
 	}
@@ -90,10 +93,21 @@ func chatArgs(opts RunOpts) []string {
 		"--cwd", BotHome(opts),
 		"--data-dir", dataDir(opts),
 	)
+	if host := clientHost(opts); host != "" {
+		args = append(args, "--host", host)
+	}
 	if sid := sessionOf(opts); sid != "" {
 		args = append(args, "--session", sid)
 	}
 	return args
+}
+
+func clientHost(opts RunOpts) string {
+	home := BotHome(opts)
+	if ServerLive(home) {
+		return HostURL(home)
+	}
+	return ""
 }
 
 func sessionOf(opts RunOpts) string {

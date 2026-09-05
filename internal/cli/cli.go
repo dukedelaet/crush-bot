@@ -87,6 +87,8 @@ func run(io IO, args []string) int {
 		return cmdBroadcast(io, rest)
 	case "group":
 		return cmdGroup(io, rest)
+	case "keepalive":
+		return cmdKeepalive(io, rest)
 	case "sandbox-exec":
 		return cmdSandboxExec(io, rest)
 	default:
@@ -180,7 +182,8 @@ func printHelp(w io.Writer) {
 	row("chat", "attach Crush TUI under turn.lock")
 	row("stop", "SIGINT in-flight Crush")
 	row("doctor", "check crush, soul, session, hooks; --check")
-	row("daemon", "start|stop|status|logs")
+	row("daemon", "start|stop|status|logs|install|uninstall")
+	row("keepalive", "start|stop|status [slug|--all] crush server")
 	row("inbox", "pending/archive/failed; retry <id>")
 	row("tasks", "list tasks for a bot")
 	row("task", "show|retry|unblock <id>")
@@ -191,7 +194,7 @@ func printHelp(w io.Writer) {
 	row("help", "show this help")
 	row("version", "print version")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, mutedStyle.Render("Crush ≥ 0.91.2 · experimental.groups via crushbot group enable"))
+	fmt.Fprintln(w, mutedStyle.Render("Crush ≥ 0.91.2 · group enable · daemon install · keepalive"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Env:")
 	fmt.Fprintln(w, "  CRUSHBOT_HOME     "+mutedStyle.Render("data dir (default: $XDG_DATA_HOME/crushbot)"))
