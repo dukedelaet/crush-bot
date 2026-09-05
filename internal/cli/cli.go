@@ -77,6 +77,14 @@ func run(io IO, args []string) int {
 		return cmdDaemon(io, rest)
 	case "inbox":
 		return cmdInbox(io, rest)
+	case "tasks":
+		return cmdTasks(io, rest)
+	case "task":
+		return cmdTask(io, rest)
+	case "mention":
+		return cmdMention(io, rest)
+	case "broadcast":
+		return cmdBroadcast(io, rest)
 	default:
 		if strings.HasPrefix(verb, "-") {
 			fmt.Fprintln(io.Err, errStyle.Render("unknown flag: "+verb))
@@ -170,11 +178,15 @@ func printHelp(w io.Writer) {
 	row("doctor", "check crush, soul, session, hooks")
 	row("daemon", "start|stop|status|logs")
 	row("inbox", "pending/archive/failed; retry <id>")
+	row("tasks", "list tasks for a bot")
+	row("task", "show|retry|unblock <id>")
+	row("mention", "ask <bot> to message @target")
+	row("broadcast", "queue a user DM to every visible bot")
 	row("mesh", "mesh TUI (same as no args); --plain for a table")
 	row("help", "show this help")
 	row("version", "print version")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, mutedStyle.Render("Coming next: tasks, groups, sandbox"))
+	fmt.Fprintln(w, mutedStyle.Render("Coming next: groups, sandbox"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Env:")
 	fmt.Fprintln(w, "  CRUSHBOT_HOME     "+mutedStyle.Render("data dir (default: $XDG_DATA_HOME/crushbot)"))

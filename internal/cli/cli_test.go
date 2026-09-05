@@ -193,3 +193,24 @@ func TestSayAndDoctor(t *testing.T) {
 		t.Fatalf("doctor %d %s %s", code, out.String(), errb.String())
 	}
 }
+
+func TestMentionBroadcast(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CRUSHBOT_HOME", filepath.Join(dir, "home"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "cfg"))
+	installFakeCrush(t)
+	var out, errb bytes.Buffer
+	env := IO{Out: &out, Err: &errb, In: strings.NewReader("")}
+	run(env, []string{"init"})
+	run(env, []string{"spawn", "alpha"})
+	run(env, []string{"spawn", "beta"})
+	out.Reset()
+	errb.Reset()
+	if code := run(env, []string{"mention", "alpha", "beta", "please ping them"}); code != 0 {
+		t.Fatalf("mention %d %s", code, errb.String())
+	}
+	out.Reset()
+	if code := run(env, []string{"broadcast", "hello all"}); code != 0 {
+		t.Fatalf("broadcast %d %s", code, errb.String())
+	}
+}

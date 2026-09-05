@@ -12,8 +12,11 @@ func TestDefaultLimits(t *testing.T) {
 	if c.MaxHops != 8 || c.MaxParallel != 4 {
 		t.Fatalf("unexpected defaults: %+v", c)
 	}
-	if c.Experimental.Groups || c.Experimental.Tasks {
-		t.Fatal("experimental flags must default false")
+	if c.Experimental.Groups {
+		t.Fatal("groups must default false")
+	}
+	if !c.Experimental.Tasks {
+		t.Fatal("tasks default on for new inits")
 	}
 	if c.MinCrushVersion != MinCrushVersion {
 		t.Fatalf("min crush: %s", c.MinCrushVersion)

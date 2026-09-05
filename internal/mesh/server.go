@@ -115,6 +115,65 @@ func toolDefs() []map[string]any {
 				},
 			},
 		},
+		{
+			"name":        "assign_task",
+			"description": "Queue a durable task for another bot. They are woken asynchronously.",
+			"inputSchema": map[string]any{
+				"type":     "object",
+				"required": []string{"target", "title", "body"},
+				"properties": map[string]any{
+					"target":          map[string]any{"type": "string"},
+					"title":           map[string]any{"type": "string", "maxLength": 200},
+					"body":            map[string]any{"type": "string", "maxLength": MessageMaxChars},
+					"priority":        map[string]any{"type": "string", "enum": []string{"low", "normal", "high"}},
+					"idempotency_key": map[string]any{"type": "string", "maxLength": 200},
+				},
+			},
+		},
+		{
+			"name":        "task_list",
+			"description": "List tasks where you are assignee or assigner.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "task_complete",
+			"description": "Mark a task done before ending the turn.",
+			"inputSchema": map[string]any{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]any{
+					"id":     map[string]any{"type": "string"},
+					"result": map[string]any{"type": "string"},
+				},
+			},
+		},
+		{
+			"name":        "task_fail",
+			"description": "Mark a task failed or blocked (need_human).",
+			"inputSchema": map[string]any{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]any{
+					"id":     map[string]any{"type": "string"},
+					"reason": map[string]any{"type": "string"},
+					"error":  map[string]any{"type": "string"},
+				},
+			},
+		},
+		{
+			"name":        "task_delegate",
+			"description": "Create a child task and wait. Parent becomes waiting_child.",
+			"inputSchema": map[string]any{
+				"type":     "object",
+				"required": []string{"id", "target", "title", "body"},
+				"properties": map[string]any{
+					"id":     map[string]any{"type": "string"},
+					"target": map[string]any{"type": "string"},
+					"title":  map[string]any{"type": "string"},
+					"body":   map[string]any{"type": "string"},
+				},
+			},
+		},
 	}
 }
 
@@ -140,6 +199,50 @@ func callTool(id Identity, name string, args json.RawMessage) (string, bool) {
 		}
 		_ = json.Unmarshal(args, &a)
 		r := Escalate(id, a.Summary)
+		return marshal(r), r.Reason != ""
+	case "assign_task":
+		var a struct {
+			Target         string `json:"target"`
+			Title          string `json:"title"`
+			Body           string `json:"body"`
+			Priority       string `json:"priority"`
+			IdempotencyKey string `json:"idempotency_key"`
+		}
+		_ = json.Unmarshal(args, &a)
+		r := AssignTask(id, a.Target, a.Title, a.Body, a.Priority, a.IdempotencyKey)
+		return marshal(r), r.Reason != ""
+	case "task_list":
+		list, r := TaskList(id)
+		if r.Reason != "" {
+			return marshal(r), true
+		}
+		return marshal(list), false
+	case "task_complete":
+		var a struct {
+			ID     string `json:"id"`
+			Result string `json:"result"`
+		}
+		_ = json.Unmarshal(args, &a)
+		r := TaskComplete(id, a.ID, a.Result)
+		return marshal(r), r.Reason != ""
+	case "task_fail":
+		var a struct {
+			ID     string `json:"id"`
+			Reason string `json:"reason"`
+			Error  string `json:"error"`
+		}
+		_ = json.Unmarshal(args, &a)
+		r := TaskFail(id, a.ID, a.Reason, a.Error)
+		return marshal(r), r.Reason != ""
+	case "task_delegate":
+		var a struct {
+			ID     string `json:"id"`
+			Target string `json:"target"`
+			Title  string `json:"title"`
+			Body   string `json:"body"`
+		}
+		_ = json.Unmarshal(args, &a)
+		r := TaskDelegate(id, a.ID, a.Target, a.Title, a.Body)
 		return marshal(r), r.Reason != ""
 	default:
 		return fmt.Sprintf(`{"reason":"missing_config","error":"unknown tool %s"}`, name), true

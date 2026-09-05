@@ -50,7 +50,7 @@ func Default() Config {
 		QueuedExpire:    24 * time.Hour,
 		Experimental: Experimental{
 			Groups: false,
-			Tasks:  false,
+			Tasks:  true,
 		},
 	}
 }
