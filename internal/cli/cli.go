@@ -1,0 +1,146 @@
+package cli
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	"golang.org/x/term"
+
+	"github.com/dukedelaet/crush-bot/internal/config"
+	"github.com/dukedelaet/crush-bot/internal/ui"
+)
+
+const Version = "0.0.1-dev"
+
+// IO is stdin/stdout/stderr for tests.
+type IO struct {
+	In  io.Reader
+	Out io.Writer
+	Err io.Writer
+}
+
+func stdio() IO {
+	return IO{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
+}
+
+// Main is the argv router. No cobra.
+func Main(args []string) int {
+	return run(stdio(), args)
+}
+
+func run(io IO, args []string) int {
+	if len(args) == 0 {
+		return cmdDefault(io)
+	}
+	verb := args[0]
+	rest := args[1:]
+	switch verb {
+	case "help", "-h", "--help":
+		printHelp(io.Out)
+		return 0
+	case "version", "-v", "--version":
+		fmt.Fprintln(io.Out, "crushbot", Version)
+		return 0
+	case "init":
+		return cmdInit(io, rest)
+	case "mesh":
+		return cmdMesh(io, rest)
+	default:
+		if strings.HasPrefix(verb, "-") {
+			fmt.Fprintln(io.Err, errStyle.Render("unknown flag: "+verb))
+			fmt.Fprintln(io.Err, mutedStyle.Render("try crushbot --help"))
+			return 2
+		}
+		fmt.Fprintln(io.Err, errStyle.Render("unknown command: "+verb))
+		fmt.Fprintln(io.Err, mutedStyle.Render("try crushbot --help"))
+		return 2
+	}
+}
+
+func cmdDefault(io IO) int {
+	if !isTTY(os.Stdout) {
+		printHelp(io.Out)
+		return 0
+	}
+	p := config.ResolvePaths()
+	if err := ui.Run(p.Home); err != nil {
+		fmt.Fprintln(io.Err, errStyle.Render(err.Error()))
+		return 1
+	}
+	return 0
+}
+
+func cmdMesh(io IO, args []string) int {
+	plain := false
+	for _, a := range args {
+		switch a {
+		case "--plain", "-p":
+			plain = true
+		case "-h", "--help":
+			fmt.Fprintln(io.Out, "Usage: crushbot mesh [--plain]")
+			return 0
+		default:
+			fmt.Fprintln(io.Err, errStyle.Render("unknown flag: "+a))
+			return 2
+		}
+	}
+	if plain || !isTTY(os.Stdout) {
+		fmt.Fprintln(io.Out, mutedStyle.Render("no bots"))
+		return 0
+	}
+	return cmdDefault(io)
+}
+
+func cmdInit(io IO, _ []string) int {
+	p := config.ResolvePaths()
+	if err := config.EnsureHome(p); err != nil {
+		fmt.Fprintln(io.Err, errStyle.Render(err.Error()))
+		return 1
+	}
+	cfg, err := config.Load(p)
+	if err != nil {
+		fmt.Fprintln(io.Err, errStyle.Render(err.Error()))
+		return 1
+	}
+	if err := config.Save(p, cfg); err != nil {
+		fmt.Fprintln(io.Err, errStyle.Render(err.Error()))
+		return 1
+	}
+	fmt.Fprintln(io.Out, okStyle.Render("initialized"))
+	fmt.Fprintln(io.Out, "  home   ", p.Home)
+	fmt.Fprintln(io.Out, "  config ", p.ConfigFile)
+	return 0
+}
+
+func printHelp(w io.Writer) {
+	fmt.Fprintln(w, headStyle.Render("crushbot"))
+	fmt.Fprintln(w, mutedStyle.Render("Charm app · Crush-backed bot roster"))
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  crushbot                 "+mutedStyle.Render("open the mesh TUI"))
+	fmt.Fprintln(w, "  crushbot <command> [args]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Commands:")
+	row := func(name, desc string) {
+		fmt.Fprintf(w, "  %s  %s\n", cmdStyle.Render(fmt.Sprintf("%-10s", name)), desc)
+	}
+	row("init", "create CRUSHBOT_HOME and config")
+	row("mesh", "mesh TUI (same as no args); --plain for a table")
+	row("help", "show this help")
+	row("version", "print version")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, mutedStyle.Render("Coming next: spawn, list, say, chat, daemon"))
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Env:")
+	fmt.Fprintln(w, "  CRUSHBOT_HOME     "+mutedStyle.Render("data dir (default: $XDG_DATA_HOME/crushbot)"))
+	fmt.Fprintln(w, "  XDG_CONFIG_HOME   "+mutedStyle.Render("config parent (…/crushbot/config.yaml)"))
+}
+
+func isTTY(f *os.File) bool {
+	if f == nil {
+		return false
+	}
+	return term.IsTerminal(int(f.Fd()))
+}

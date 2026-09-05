@@ -1,0 +1,12 @@
+/crushbot
+/bin/
+*.exe
+*.test
+*.out
+coverage.out
+.task/
+dist/
+.idea/
+.vscode/
+*.swp
+.env
