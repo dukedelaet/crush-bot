@@ -73,6 +73,10 @@ func run(io IO, args []string) int {
 		return cmdDoctor(io, rest)
 	case "mcp":
 		return cmdMCP(io, rest)
+	case "daemon":
+		return cmdDaemon(io, rest)
+	case "inbox":
+		return cmdInbox(io, rest)
 	default:
 		if strings.HasPrefix(verb, "-") {
 			fmt.Fprintln(io.Err, errStyle.Render("unknown flag: "+verb))
@@ -164,11 +168,13 @@ func printHelp(w io.Writer) {
 	row("chat", "attach Crush TUI under turn.lock")
 	row("stop", "SIGINT in-flight Crush")
 	row("doctor", "check crush, soul, session, hooks")
+	row("daemon", "start|stop|status|logs")
+	row("inbox", "pending/archive/failed; retry <id>")
 	row("mesh", "mesh TUI (same as no args); --plain for a table")
 	row("help", "show this help")
 	row("version", "print version")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, mutedStyle.Render("Coming next: mesh MCP, daemon, tasks"))
+	fmt.Fprintln(w, mutedStyle.Render("Coming next: tasks, groups, sandbox"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Env:")
 	fmt.Fprintln(w, "  CRUSHBOT_HOME     "+mutedStyle.Render("data dir (default: $XDG_DATA_HOME/crushbot)"))

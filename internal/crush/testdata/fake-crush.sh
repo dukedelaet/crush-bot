@@ -69,6 +69,9 @@ case "$cmd" in
         echo "$title" > "$state/last-title"
         echo "renamed $id $title"
         ;;
+      show)
+        printf '%s\n' '{"messages":[{"role":"user","parts":[{"type":"text","text":"hi"}]},{"role":"assistant","parts":[{"type":"text","text":"online"}]}]}'
+        ;;
       *)
         echo "unknown session $sub" >&2
         exit 1

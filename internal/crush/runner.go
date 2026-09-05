@@ -24,18 +24,24 @@ type Result struct {
 }
 
 type RunOpts struct {
-	Bot     roster.Bot
-	Root    string // CRUSHBOT_HOME
-	Bin     string
-	Kind    string
-	Prompt  string
-	Nowait  bool
-	Timeout time.Duration
-	Debug   bool
-	Yolo    bool
-	Stdin   io.Reader
-	Stdout  io.Writer
-	Stderr  io.Writer
+	Bot        roster.Bot
+	Root       string // CRUSHBOT_HOME
+	Bin        string
+	Kind       string
+	Prompt     string
+	Nowait     bool
+	Timeout    time.Duration
+	Debug      bool
+	Yolo       bool
+	Stdin      io.Reader
+	Stdout     io.Writer
+	Stderr     io.Writer
+	Inbound    []InboundRef
+	InboundHop int
+	Trace      []string
+	ParentID   string
+	MaxHops    int
+	HeldLock   *lock.Lock // if set, caller owns flock
 }
 
 func BotHome(opts RunOpts) string {
@@ -120,19 +126,32 @@ func acquireTurn(opts RunOpts) (*lock.Lock, error) {
 
 func Run(ctx context.Context, opts RunOpts) (Result, error) {
 	home := BotHome(opts)
-	l, err := acquireTurn(opts)
-	if err != nil {
-		return Result{}, err
+	if opts.HeldLock == nil {
+		l, err := acquireTurn(opts)
+		if err != nil {
+			return Result{}, err
+		}
+		defer l.Unlock()
 	}
-	defer l.Unlock()
 
+	trace := opts.Trace
+	if len(trace) == 0 {
+		trace = []string{"user"}
+	}
+	kind := opts.Kind
+	if kind == "" {
+		kind = "human_say"
+	}
 	turn := Turn{
-		Bot:       opts.Bot.Slug,
-		SessionID: opts.Bot.CanonicalSessionID,
-		Kind:      opts.Kind,
-		Trace:     []string{"user"},
-		MaxSends:  MaxSendsFor(opts.Kind),
-		MaxHops:   8,
+		Bot:        opts.Bot.Slug,
+		SessionID:  opts.Bot.CanonicalSessionID,
+		Kind:       kind,
+		Trace:      trace,
+		Inbound:    opts.Inbound,
+		InboundHop: opts.InboundHop,
+		ParentID:   opts.ParentID,
+		MaxSends:   MaxSendsFor(kind),
+		MaxHops:    opts.MaxHops,
 	}
 	if err := WriteTurn(home, turn); err != nil {
 		return Result{}, err

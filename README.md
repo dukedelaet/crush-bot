@@ -27,7 +27,12 @@ crushbot doctor
 crushbot                          # Bubble Tea mesh
 ```
 
-Requires Crush ≥ 0.91.2 with a configured provider for `spawn` / `say` / `chat`.
+```bash
+./crushbot daemon start   # wakes bots that have pending DMs
+./crushbot inbox
+```
+
+Requires Crush ≥ 0.91.2 with a configured provider for `spawn` / `say` / `chat`. The daemon is required for mesh delivery (`message_bot` → inbox → `crush run`).
 
 Override the data dir with `CRUSHBOT_HOME`. Config lives at `$XDG_CONFIG_HOME/crushbot/config.yaml`.
 

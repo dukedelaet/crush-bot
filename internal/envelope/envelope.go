@@ -25,8 +25,85 @@ type Envelope struct {
 	Trace       []string  `json:"trace"`
 }
 
-func PendingDir(botHome string) string {
-	return filepath.Join(botHome, "inbox", "pending")
+func Dir(botHome, state string) string {
+	return filepath.Join(botHome, "inbox", state)
+}
+
+func PendingDir(botHome string) string { return Dir(botHome, "pending") }
+func ProcessingDir(botHome string) string {
+	return Dir(botHome, "processing")
+}
+func ArchiveDir(botHome string) string { return Dir(botHome, "archive") }
+func FailedDir(botHome string) string  { return Dir(botHome, "failed") }
+
+func ReadFile(path string) (Envelope, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return Envelope{}, err
+	}
+	var env Envelope
+	if err := json.Unmarshal(b, &env); err != nil {
+		return Envelope{}, err
+	}
+	return env, nil
+}
+
+func List(dir string) ([]Envelope, []string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil, nil
+		}
+		return nil, nil, err
+	}
+	var envs []Envelope
+	var paths []string
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+			continue
+		}
+		p := filepath.Join(dir, e.Name())
+		env, err := ReadFile(p)
+		if err != nil {
+			continue
+		}
+		envs = append(envs, env)
+		paths = append(paths, p)
+	}
+	return envs, paths, nil
+}
+
+func Move(src, destDir string) (string, error) {
+	if err := os.MkdirAll(destDir, 0o700); err != nil {
+		return "", err
+	}
+	dst := filepath.Join(destDir, filepath.Base(src))
+	if err := os.Rename(src, dst); err != nil {
+		return "", err
+	}
+	return dst, nil
+}
+
+func Write(dir string, env Envelope) (string, error) {
+	if env.ID == "" {
+		env.ID = NewID()
+	}
+	if env.CreatedAt.IsZero() {
+		env.CreatedAt = time.Now().UTC()
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, env.ID+".json")
+	raw, err := json.MarshalIndent(env, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
+		return "", err
+	}
+	return path, os.Rename(tmp, path)
 }
 
 func NewID() string {

@@ -76,3 +76,60 @@ func truncate(s string, n int) string {
 	}
 	return s[:n] + "…"
 }
+
+type showPayload struct {
+	Messages []showMsg `json:"messages"`
+}
+
+type showMsg struct {
+	Role  string     `json:"role"`
+	Parts []showPart `json:"parts"`
+}
+
+type showPart struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+// LastAssistant is pinned from Crush v0.91.2 `session show --json` (last assistant text parts).
+func LastAssistant(bin, cwd, dataDir, sessionID string, maxChars int) (string, error) {
+	args := []string{"session", "show"}
+	if sessionID != "" {
+		args = append(args, sessionID)
+	} else {
+		args = []string{"session", "last"}
+	}
+	args = append(args, "--json", "--cwd", cwd, "--data-dir", dataDir)
+	out, err := exec.Command(bin, args...).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("session show: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	var p showPayload
+	if err := json.Unmarshal(out, &p); err != nil {
+		return "", fmt.Errorf("session show json: %w", err)
+	}
+	var text string
+	for i := len(p.Messages) - 1; i >= 0; i-- {
+		if p.Messages[i].Role != "assistant" {
+			continue
+		}
+		var b strings.Builder
+		for _, part := range p.Messages[i].Parts {
+			if part.Type == "text" {
+				b.WriteString(part.Text)
+			}
+		}
+		text = strings.TrimSpace(b.String())
+		if text != "" {
+			break
+		}
+	}
+	if maxChars > 0 && len(text) > maxChars {
+		// character cap (design: 4096 chars, not KiB)
+		r := []rune(text)
+		if len(r) > maxChars {
+			text = string(r[:maxChars])
+		}
+	}
+	return text, nil
+}
