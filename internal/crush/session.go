@@ -89,20 +89,20 @@ type showMsg struct {
 type showPart struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
+	Name string `json:"name,omitempty"`
+}
+
+// Line is one transcript turn from session show --json.
+type Line struct {
+	Role string
+	Text string
 }
 
 // LastAssistant is pinned from Crush v0.91.2 `session show --json` (last assistant text parts).
 func LastAssistant(bin, cwd, dataDir, sessionID string, maxChars int) (string, error) {
-	args := []string{"session", "show"}
-	if sessionID != "" {
-		args = append(args, sessionID)
-	} else {
-		args = []string{"session", "last"}
-	}
-	args = append(args, "--json", "--cwd", cwd, "--data-dir", dataDir)
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	out, err := sessionShowJSON(bin, cwd, dataDir, sessionID)
 	if err != nil {
-		return "", fmt.Errorf("session show: %w (%s)", err, strings.TrimSpace(string(out)))
+		return "", err
 	}
 	var p showPayload
 	if err := json.Unmarshal(out, &p); err != nil {
@@ -132,4 +132,71 @@ func LastAssistant(bin, cwd, dataDir, sessionID string, maxChars int) (string, e
 		}
 	}
 	return text, nil
+}
+
+func SessionTranscript(bin, cwd, dataDir, sessionID string, maxMsgs int) ([]Line, error) {
+	raw, err := sessionShowJSON(bin, cwd, dataDir, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	return parseTranscript(raw, maxMsgs)
+}
+
+func sessionShowJSON(bin, cwd, dataDir, sessionID string) ([]byte, error) {
+	args := []string{"session", "show"}
+	if sessionID != "" {
+		args = append(args, sessionID)
+	} else {
+		args = []string{"session", "last"}
+	}
+	args = append(args, "--json", "--cwd", cwd, "--data-dir", dataDir)
+	out, err := exec.Command(bin, args...).CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("session show: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	return out, nil
+}
+
+func parseTranscript(raw []byte, maxMsgs int) ([]Line, error) {
+	var p showPayload
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return nil, fmt.Errorf("session show json: %w", err)
+	}
+	var lines []Line
+	for _, m := range p.Messages {
+		var b strings.Builder
+		for _, part := range m.Parts {
+			switch part.Type {
+			case "text":
+				if part.Text != "" {
+					if b.Len() > 0 {
+						b.WriteByte('\n')
+					}
+					b.WriteString(part.Text)
+				}
+			case "tool", "tool_use", "tool_call":
+				name := part.Name
+				if name == "" {
+					name = "tool"
+				}
+				if b.Len() > 0 {
+					b.WriteByte('\n')
+				}
+				b.WriteString("[" + name + "]")
+			}
+		}
+		text := strings.TrimSpace(b.String())
+		if text == "" {
+			continue
+		}
+		role := m.Role
+		if role == "" {
+			role = "other"
+		}
+		lines = append(lines, Line{Role: role, Text: text})
+	}
+	if maxMsgs > 0 && len(lines) > maxMsgs {
+		lines = lines[len(lines)-maxMsgs:]
+	}
+	return lines, nil
 }

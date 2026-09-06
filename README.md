@@ -118,7 +118,7 @@ Public lines are `group_say`. `message_bot` in a group round is a private DM.
 crushbot                  # or: crushbot mesh
 ```
 
-Roster on the left, Crush or inbox in the right pane, help pinned at the bottom. `j`/`k` move, `enter` opens Crush, `i` opens that bot’s mailbox (pending / processing / archive / failed; `tab` cycles folders, `R` retries failed), `ctrl+g` returns to the list, `n` spawns a bot, `r` refreshes, `q` / `ctrl+q` quits. `--plain` prints a table. Crush `/new` is a session inside one bot; it does not add a row to this roster.
+Roster on the left; the right pane is that bot’s Crush **session transcript** plus a prompt (`crush run`, same as `say`). `enter` opens chat, type a line and `enter` to send, `pgup`/`pgdn` scroll, `i` opens the mailbox, `ctrl+g` returns to the list, `n` spawns a bot, `q` / `ctrl+q` quits. Full Crush TUI is still `crushbot chat <slug>`. `--plain` prints a table.
 
 ### Keep-alive Crush server
 

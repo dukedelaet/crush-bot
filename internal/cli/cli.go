@@ -191,7 +191,7 @@ func printHelp(w io.Writer) {
 	row("mention", "ask <bot> to message @target")
 	row("broadcast", "queue a user DM to every visible bot")
 	row("group", "enable|create|list|chat|disband")
-	row("mesh", "mesh TUI (sidebar + Crush pane); --plain for a table")
+	row("mesh", "mesh TUI (sidebar + session transcript); --plain for a table")
 	row("help", "show this help")
 	row("version", "print version")
 	fmt.Fprintln(w)

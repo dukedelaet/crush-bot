@@ -6,6 +6,8 @@ import (
 	"io"
 	"strings"
 
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -23,7 +25,7 @@ const (
 	minSideW   = 16
 	maxSideW   = 28
 	focusSide  = 0
-	focusCrush = 1
+	focusChat  = 1
 	focusInbox = 2
 )
 
@@ -36,7 +38,6 @@ var (
 	helpStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Padding(0, 1)
 	divStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	divHotStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	paneStyle   = lipgloss.NewStyle()
 	boxStyle    = lipgloss.NewStyle().Padding(1, 2)
 )
 
@@ -53,13 +54,21 @@ type Model struct {
 	cursor        int
 	status        string
 	focus         int
-	pane          *crushPane
+	chatSlug      string
+	chatBusy      bool
+	in            textinput.Model
+	vp            viewport.Model
 	showInbox     bool
 	inbox         inboxState
 }
 
 func New(home string) Model {
-	m := Model{home: home, focus: focusSide}
+	m := Model{
+		home:  home,
+		focus: focusSide,
+		in:    newChatInput(),
+		vp:    viewport.New(viewport.WithWidth(40), viewport.WithHeight(10)),
+	}
 	m.reload()
 	return m
 }
@@ -153,34 +162,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		_, crushW, bodyH := layout(m.width, m.height)
-		if m.pane != nil {
-			m.pane.resize(crushW, bodyH)
+		m.sizeChat()
+		if m.chatSlug != "" {
+			m.reloadChat()
 		}
-	case paneDrawMsg:
-		if m.pane != nil {
-			return m, m.pane.listen()
+	case sayDoneMsg:
+		m.chatBusy = false
+		m.reload()
+		m.reloadChat()
+		if msg.err != nil {
+			m.status = "say failed: " + msg.err.Error()
+		} else {
+			m.status = "said @" + msg.slug
 		}
-	case paneTickMsg:
-		if m.pane != nil && !m.pane.dead {
-			return m, paneTick()
-		}
-	case paneExitMsg:
-		if m.pane != nil && (msg.slug == "" || msg.slug == m.pane.slug) {
-			m.pane.dead = true
-			m.focus = focusSide
-			m.reload()
-			if e := formatPaneErr(msg.err); e != "" {
-				m.status = "crush exited: " + e
-				if line := lastSnapLine(msg.snap); line != "" {
-					m.status += " — " + line
-				}
-			} else {
-				m.status = "crush closed"
-				m.pane.close()
-				m.pane = nil
-			}
-		}
+		return m, m.in.Focus()
 	case spawnDoneMsg:
 		m.reload()
 		if msg.slug != "" {
@@ -215,21 +210,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if isCtrl(msg, 'q') {
 			return m.quitHost()
 		}
-		if isCtrl(msg, 'g') || isCtrl(msg, 'b') {
-			if m.focus == focusCrush || m.focus == focusInbox {
+		if isCtrl(msg, 'g') {
+			if m.focus == focusChat || m.focus == focusInbox {
 				m.focus = focusSide
 				m.status = "list focused — q quits"
 				return m, nil
 			}
-			if m.pane != nil && !m.pane.dead {
+			if m.chatSlug != "" {
 				m.showInbox = false
-				m.focus = focusCrush
+				m.focus = focusChat
+				m.reloadChat()
 			}
 			return m, nil
 		}
-		if m.focus == focusCrush && m.pane != nil && !m.pane.dead {
-			m.pane.sendKey(msg)
-			return m, nil
+		if m.focus == focusChat {
+			switch msg.String() {
+			case "esc":
+				m.focus = focusSide
+				m.in.Blur()
+				return m, nil
+			case "pgup":
+				m.vp.ScrollUp(5)
+				return m, nil
+			case "pgdown":
+				m.vp.ScrollDown(5)
+				return m, nil
+			case "enter":
+				return m.sendChat()
+			}
+			var cmd tea.Cmd
+			m.in, cmd = m.in.Update(msg)
+			return m, cmd
 		}
 		switch msg.String() {
 		case "q", "ctrl+c":
@@ -277,6 +288,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "r":
 			m.reload()
+			if m.chatSlug != "" {
+				m.reloadChat()
+			}
 		case "n":
 			wiz := &spawnWizard{home: m.home}
 			return m, tea.Exec(wiz, func(err error) tea.Msg {
@@ -308,16 +322,17 @@ func (m Model) handleMouse(kind string, mouse tea.Mouse) (tea.Model, tea.Cmd) {
 		m.focus = focusInbox
 		return m, nil
 	}
-	if m.pane == nil {
-		return m, nil
+	if m.chatSlug != "" {
+		m.focus = focusChat
+		if kind == "wheel" {
+			switch mouse.Button {
+			case tea.MouseWheelUp:
+				m.vp.ScrollUp(3)
+			case tea.MouseWheelDown:
+				m.vp.ScrollDown(3)
+			}
+		}
 	}
-	m.focus = focusCrush
-	mx := mouse.X - sideW - dividerW
-	my := mouse.Y
-	if mx < 0 || my < 0 {
-		return m, nil
-	}
-	m.pane.sendMouse(kind, tea.Mouse{X: mx, Y: my, Button: mouse.Button, Mod: mouse.Mod})
 	return m, nil
 }
 
@@ -333,11 +348,44 @@ func (m Model) openInbox() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) quitHost() (tea.Model, tea.Cmd) {
-	if m.pane != nil {
-		m.pane.close()
-		m.pane = nil
-	}
 	return m, tea.Quit
+}
+
+func (m *Model) sizeChat() {
+	_, w, h := layout(m.width, m.height)
+	th := h - 3
+	if th < 3 {
+		th = 3
+	}
+	m.vp.SetWidth(w)
+	m.vp.SetHeight(th)
+	m.in.SetWidth(max(8, w-2))
+}
+
+func (m *Model) reloadChat() {
+	if m.chatSlug == "" || len(m.rows) == 0 {
+		return
+	}
+	var bot roster.Bot
+	found := false
+	for _, r := range m.rows {
+		if r.bot.Slug == m.chatSlug {
+			bot = r.bot
+			found = true
+			break
+		}
+	}
+	if !found {
+		m.chatSlug = ""
+		m.chatBusy = false
+		return
+	}
+	body, err := loadTranscript(m.home, bot)
+	if err != nil {
+		body = mutedStyle.Render(err.Error())
+	}
+	m.vp.SetContent(body)
+	m.vp.GotoBottom()
 }
 
 func (m Model) openSelected() (tea.Model, tea.Cmd) {
@@ -345,27 +393,43 @@ func (m Model) openSelected() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	bot := m.rows[m.cursor].bot
-	if m.pane != nil && m.pane.slug == bot.Slug && !m.pane.dead {
-		m.showInbox = false
-		m.focus = focusCrush
-		return m, nil
-	}
-	if m.pane != nil {
-		m.pane.close()
-		m.pane = nil
-	}
-	_, crushW, bodyH := layout(m.width, m.height)
-	pane, cmd, err := openCrushPane(m.home, bot, crushW, bodyH)
-	if err != nil {
-		m.status = "crush failed: " + err.Error()
-		m.reload()
-		return m, nil
-	}
-	m.pane = pane
 	m.showInbox = false
-	m.focus = focusCrush
-	m.status = "crush @" + bot.Slug
+	m.chatSlug = bot.Slug
+	m.focus = focusChat
+	m.sizeChat()
+	m.reloadChat()
+	m.status = "chat @" + bot.Slug
+	cmd := m.in.Focus()
 	return m, cmd
+}
+
+func (m Model) sendChat() (tea.Model, tea.Cmd) {
+	if m.chatBusy || m.chatSlug == "" {
+		return m, nil
+	}
+	line := strings.TrimSpace(m.in.Value())
+	if line == "" {
+		return m, nil
+	}
+	var bot roster.Bot
+	for _, r := range m.rows {
+		if r.bot.Slug == m.chatSlug {
+			bot = r.bot
+			break
+		}
+	}
+	if bot.Slug == "" {
+		return m, nil
+	}
+	m.in.SetValue("")
+	m.in.Blur()
+	m.chatBusy = true
+	m.status = "running @" + bot.Slug
+	root := m.home
+	return m, func() tea.Msg {
+		err := runSay(root, bot, line)
+		return sayDoneMsg{slug: bot.Slug, err: err}
+	}
 }
 
 func (m Model) View() tea.View {
@@ -378,9 +442,6 @@ func (m Model) View() tea.View {
 	frame := lipgloss.JoinVertical(lipgloss.Left, body, help)
 	v := tea.NewView(frame)
 	v.AltScreen = true
-	if m.focus == focusCrush && m.pane != nil {
-		v.MouseMode = tea.MouseModeCellMotion
-	}
 	return v
 }
 
@@ -400,11 +461,11 @@ func (m Model) sidebarView(width, height int) string {
 			mark = "▸"
 		}
 		open := ""
-		if m.pane != nil && m.pane.slug == r.bot.Slug {
+		if m.chatSlug == r.bot.Slug {
 			open = " ●"
 		}
 		busy := ""
-		if r.busy {
+		if r.busy || (m.chatBusy && m.chatSlug == r.bot.Slug) {
 			busy = " busy"
 		}
 		line := fmt.Sprintf("%s @%s%s%s", mark, r.bot.Slug, open, busy)
@@ -427,30 +488,31 @@ func (m Model) rightView(width, height int) string {
 }
 
 func (m Model) crushView(width, height int) string {
-	var body string
-	if m.pane != nil {
-		body = m.pane.render()
-		if body == "" {
-			body = mutedStyle.Render("starting Crush…")
+	if m.chatSlug == "" {
+		hint := mutedStyle.Render("press enter to open a bot transcript")
+		if len(m.rows) == 0 {
+			hint = mutedStyle.Render("spawn a bot, then press enter")
 		}
-	} else if len(m.rows) == 0 {
-		body = mutedStyle.Render("spawn a bot, then press enter")
-	} else {
-		body = mutedStyle.Render("press enter to open Crush")
+		lines := []string{hint}
+		for len(lines) < height {
+			lines = append(lines, "")
+		}
+		return strings.Join(lines[:height], "\n")
 	}
-	lines := strings.Split(body, "\n")
-	for len(lines) < height {
-		lines = append(lines, "")
+	th := height - 3
+	if th < 1 {
+		th = 1
 	}
-	if len(lines) > height {
-		lines = lines[:height]
+	head := selStyle.Render("@"+m.chatSlug) + "  " + mutedStyle.Render("session")
+	if m.chatBusy {
+		head += "  " + mutedStyle.Render("running…")
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join([]string{head, m.vp.View(), m.in.View()}, "\n")
 }
 
 func (m Model) divider(height int) string {
 	st := divStyle
-	if m.focus == focusCrush || m.focus == focusInbox {
+	if m.focus == focusChat || m.focus == focusInbox {
 		st = divHotStyle
 	}
 	col := strings.Repeat("│\n", height)
@@ -461,15 +523,16 @@ func (m Model) divider(height int) string {
 func (m Model) helpView(width int) string {
 	var s string
 	switch {
-	case m.focus == focusCrush && m.pane != nil && !m.pane.dead:
-		s = fmt.Sprintf("%s list  %s quit crushbot   (other keys go to Crush)",
-			keyStyle.Render("ctrl+g"), keyStyle.Render("ctrl+q"))
+	case m.focus == focusChat:
+		s = fmt.Sprintf("%s send  %s scroll  %s list  %s quit",
+			keyStyle.Render("enter"), keyStyle.Render("pgup/pgdn"),
+			keyStyle.Render("esc"), keyStyle.Render("ctrl+q"))
 	case m.focus == focusInbox:
-		s = fmt.Sprintf("%s move  %s folder  %s crush  %s retry  %s list  %s quit",
+		s = fmt.Sprintf("%s move  %s folder  %s chat  %s retry  %s list  %s quit",
 			keyStyle.Render("j/k"), keyStyle.Render("tab"), keyStyle.Render("enter"),
 			keyStyle.Render("R"), keyStyle.Render("esc"), keyStyle.Render("q"))
 	default:
-		s = fmt.Sprintf("%s move  %s crush  %s inbox  %s new  %s refresh  %s quit",
+		s = fmt.Sprintf("%s move  %s chat  %s inbox  %s new  %s refresh  %s quit",
 			keyStyle.Render("j/k"), keyStyle.Render("enter"), keyStyle.Render("i"),
 			keyStyle.Render("n"), keyStyle.Render("r"), keyStyle.Render("q"))
 	}
