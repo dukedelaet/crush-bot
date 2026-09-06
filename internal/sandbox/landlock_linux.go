@@ -43,6 +43,7 @@ const handledFS = accessFSExecute | accessFSWriteFile | accessFSReadFile | acces
 
 const accessRO = accessFSExecute | accessFSReadFile | accessFSReadDir
 const accessRW = handledFS
+const accessWalk = accessFSExecute
 
 // File-only rights. Directory bits (READ_DIR, MAKE_*, REMOVE_*) on a regular
 // file make landlock_add_rule return EINVAL.
@@ -83,6 +84,36 @@ func applyLandlock(bot roster.Bot, root, crushBin, self string) error {
 	if self != "" {
 		ro = append(ro, self)
 	}
+	// Landlock requires EXECUTE on every directory walked to reach a file.
+	// A rule on ~/.local/share/crush is not enough to open
+	// ~/.local/share/crush/crush.json without traverse on / and parents.
+	if err := addPath(fd, "/", accessWalk); err != nil {
+		return err
+	}
+	for _, p := range append(append([]string{}, ro...), rwPaths(bot, root)...) {
+		for _, dir := range walkDirs(p) {
+			_ = addPath(fd, dir, accessWalk)
+		}
+	}
+	rw := rwPaths(bot, root)
+	for _, p := range ro {
+		_ = addPath(fd, p, accessRO)
+	}
+	for _, p := range rw {
+		if err := addPath(fd, p, accessRW); err != nil {
+			return err
+		}
+	}
+	if _, _, errno = unix.Syscall6(syscall.SYS_PRCTL, unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0, 0); errno != 0 {
+		return fmt.Errorf("PR_SET_NO_NEW_PRIVS: %v", errno)
+	}
+	if _, _, errno = unix.Syscall(sysLandlockRestrictSelf, uintptr(fd), 0, 0); errno != 0 {
+		return fmt.Errorf("landlock_restrict_self: %v", errno)
+	}
+	return nil
+}
+
+func rwPaths(bot roster.Bot, root string) []string {
 	home := roster.Home(root, bot.Slug)
 	needs := filepath.Join(root, "needs_you.jsonl")
 	if _, err := os.Stat(needs); os.IsNotExist(err) {
@@ -101,21 +132,20 @@ func applyLandlock(bot roster.Bot, root, crushBin, self string) error {
 		_ = os.MkdirAll(pend, 0o700)
 		rw = append(rw, pend)
 	}
-	for _, p := range ro {
-		_ = addPath(fd, p, accessRO)
-	}
-	for _, p := range rw {
-		if err := addPath(fd, p, accessRW); err != nil {
-			return err
+	return rw
+}
+
+func walkDirs(path string) []string {
+	var out []string
+	p := filepath.Clean(path)
+	for {
+		p = filepath.Dir(p)
+		out = append(out, p)
+		if p == string(filepath.Separator) || p == "." {
+			break
 		}
 	}
-	if _, _, errno = unix.Syscall6(syscall.SYS_PRCTL, unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0, 0); errno != 0 {
-		return fmt.Errorf("PR_SET_NO_NEW_PRIVS: %v", errno)
-	}
-	if _, _, errno = unix.Syscall(sysLandlockRestrictSelf, uintptr(fd), 0, 0); errno != 0 {
-		return fmt.Errorf("landlock_restrict_self: %v", errno)
-	}
-	return nil
+	return out
 }
 
 func addPath(ruleset int, path string, access uint64) error {

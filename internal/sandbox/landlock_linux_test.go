@@ -35,3 +35,24 @@ func TestAddPathFileWithDirectoryRights(t *testing.T) {
 		t.Fatalf("dir rule: %v", err)
 	}
 }
+
+func TestWalkDirs(t *testing.T) {
+	got := walkDirs("/home/duke/.local/share/crush/crush.json")
+	want := map[string]bool{
+		"/home/duke/.local/share/crush": true,
+		"/home/duke/.local/share":       true,
+		"/home/duke/.local":             true,
+		"/home/duke":                    true,
+		"/home":                         true,
+		"/":                             true,
+	}
+	for _, p := range got {
+		if !want[p] {
+			t.Fatalf("unexpected %q in %v", p, got)
+		}
+		delete(want, p)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing %v from %v", want, got)
+	}
+}
