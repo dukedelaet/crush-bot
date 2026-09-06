@@ -6,7 +6,7 @@
 | **Author** | crush-bot maintainers |
 | **Date** | 2026-09-04 |
 | **Status** | Draft (open questions resolved) |
-| **Repo** | `/home/duke/repos/dukedelaet/crush-bot` (empty at design time; greenfield) |
+| **Repo** | https://github.com/hocoder-agents/crush-bot |
 | **Crush version designed against** | v0.91.2 (`/home/duke/.local/bin/crush`) — **minimum supported** |
 | **License** | MIT |
 
@@ -1004,7 +1004,7 @@ Greenfield: **all new**. Crush’s API is consumed, not changed.
 ### Go module (proposed)
 
 ```
-github.com/dukedelaet/crush-bot
+github.com/hocoder-agents/crush-bot
   cmd/crushbot/main.go     # tea.NewProgram vs cli.Dispatch
   internal/
     cli/           # argv router + Lip Gloss help; NOT cobra
@@ -1213,7 +1213,7 @@ No open product questions remain.
 - Crush Claude `additionalContext` drop: https://github.com/charmbracelet/crush/issues/3156
 - bubblewrap: https://github.com/containers/bubblewrap
 - Local Crush: v0.91.2 at `/home/duke/.local/bin/crush`
-- Target repo: `/home/duke/repos/dukedelaet/crush-bot` (empty)
+- Target repo: https://github.com/hocoder-agents/crush-bot
 
 ---
 

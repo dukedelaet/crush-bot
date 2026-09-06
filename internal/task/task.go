@@ -10,8 +10,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/dukedelaet/crush-bot/internal/envelope"
-	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/envelope"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
 )
 
 type Task struct {

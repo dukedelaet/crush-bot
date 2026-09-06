@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dukedelaet/crush-bot/internal/config"
-	"github.com/dukedelaet/crush-bot/internal/envelope"
-	"github.com/dukedelaet/crush-bot/internal/roster"
-	"github.com/dukedelaet/crush-bot/internal/task"
+	"github.com/hocoder-agents/crush-bot/internal/config"
+	"github.com/hocoder-agents/crush-bot/internal/envelope"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/task"
 )
 
 func cmdTasks(io IO, args []string) int {

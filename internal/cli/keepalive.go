@@ -3,9 +3,9 @@ package cli
 import (
 	"fmt"
 
-	"github.com/dukedelaet/crush-bot/internal/config"
-	"github.com/dukedelaet/crush-bot/internal/crush"
-	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/config"
+	"github.com/hocoder-agents/crush-bot/internal/crush"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
 )
 
 func cmdKeepalive(io IO, args []string) int {

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dukedelaet/crush-bot/internal/config"
-	"github.com/dukedelaet/crush-bot/internal/envelope"
-	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/config"
+	"github.com/hocoder-agents/crush-bot/internal/envelope"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
 )
 
 func cmdMention(io IO, args []string) int {

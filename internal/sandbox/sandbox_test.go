@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
 )
 
 func TestRequired(t *testing.T) {

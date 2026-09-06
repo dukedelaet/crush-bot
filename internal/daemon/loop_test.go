@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dukedelaet/crush-bot/internal/config"
-	"github.com/dukedelaet/crush-bot/internal/envelope"
-	"github.com/dukedelaet/crush-bot/internal/protocol"
-	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/config"
+	"github.com/hocoder-agents/crush-bot/internal/envelope"
+	"github.com/hocoder-agents/crush-bot/internal/protocol"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
 )
 
 func fakeCrush(t *testing.T) string {

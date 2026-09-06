@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dukedelaet/crush-bot/internal/config"
-	"github.com/dukedelaet/crush-bot/internal/group"
-	"github.com/dukedelaet/crush-bot/internal/protocol"
-	"github.com/dukedelaet/crush-bot/internal/roster"
-	"github.com/dukedelaet/crush-bot/internal/ui"
+	"github.com/hocoder-agents/crush-bot/internal/config"
+	"github.com/hocoder-agents/crush-bot/internal/group"
+	"github.com/hocoder-agents/crush-bot/internal/protocol"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/ui"
 )
 
 func cmdGroup(io IO, args []string) int {

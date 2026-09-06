@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dukedelaet/crush-bot/internal/lock"
+	"github.com/hocoder-agents/crush-bot/internal/lock"
 )
 
 func pidPath(root string) string  { return filepath.Join(root, "daemon.pid") }

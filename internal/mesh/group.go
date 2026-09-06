@@ -8,9 +8,9 @@ import (
 	"syscall"
 	"unicode/utf8"
 
-	"github.com/dukedelaet/crush-bot/internal/config"
-	"github.com/dukedelaet/crush-bot/internal/crush"
-	"github.com/dukedelaet/crush-bot/internal/group"
+	"github.com/hocoder-agents/crush-bot/internal/config"
+	"github.com/hocoder-agents/crush-bot/internal/crush"
+	"github.com/hocoder-agents/crush-bot/internal/group"
 )
 
 func groupsEnabled(id Identity) bool {

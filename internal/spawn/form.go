@@ -8,7 +8,7 @@ import (
 
 	"charm.land/huh/v2"
 
-	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
 )
 
 // ErrAborted is huh's user-cancelled error.

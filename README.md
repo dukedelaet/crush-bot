@@ -14,7 +14,7 @@ A [Charm](https://charm.sh) Crush powered bot mesh. Each bot is a named [Crush](
 ### Build
 
 ```bash
-git clone https://github.com/dukedelaet/crush-bot.git
+git clone https://github.com/hocoder-agents/crush-bot.git
 cd crush-bot
 go build -o crushbot ./cmd/crushbot
 ```

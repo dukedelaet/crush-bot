@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dukedelaet/crush-bot/internal/roster"
-	"github.com/dukedelaet/crush-bot/internal/soul"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/soul"
 )
 
 type Options struct {

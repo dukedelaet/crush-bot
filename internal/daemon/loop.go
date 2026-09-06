@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dukedelaet/crush-bot/internal/config"
-	"github.com/dukedelaet/crush-bot/internal/crush"
-	"github.com/dukedelaet/crush-bot/internal/envelope"
-	"github.com/dukedelaet/crush-bot/internal/lock"
-	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/config"
+	"github.com/hocoder-agents/crush-bot/internal/crush"
+	"github.com/hocoder-agents/crush-bot/internal/envelope"
+	"github.com/hocoder-agents/crush-bot/internal/lock"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
 )
 
 type Options struct {

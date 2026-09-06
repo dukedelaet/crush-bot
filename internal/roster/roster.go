@@ -11,7 +11,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/dukedelaet/crush-bot/internal/soul"
+	"github.com/hocoder-agents/crush-bot/internal/soul"
 )
 
 var slugRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)

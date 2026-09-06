@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dukedelaet/crush-bot/internal/config"
+	"github.com/hocoder-agents/crush-bot/internal/config"
 )
 
 func unitPath() (string, error) {

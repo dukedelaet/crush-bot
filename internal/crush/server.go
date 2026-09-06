@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dukedelaet/crush-bot/internal/roster"
-	"github.com/dukedelaet/crush-bot/internal/sandbox"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/sandbox"
 )
 
 func SocketPath(botHome string) string { return filepath.Join(botHome, "crush.sock") }

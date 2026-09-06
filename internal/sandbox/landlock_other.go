@@ -5,7 +5,7 @@ package sandbox
 import (
 	"fmt"
 
-	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
 )
 
 func landlockAvailable() error {

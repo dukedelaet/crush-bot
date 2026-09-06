@@ -1,4 +1,4 @@
-module github.com/dukedelaet/crush-bot
+module github.com/hocoder-agents/crush-bot
 
 go 1.25.8
 

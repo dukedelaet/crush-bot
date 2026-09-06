@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dukedelaet/crush-bot/internal/lock"
-	"github.com/dukedelaet/crush-bot/internal/roster"
-	"github.com/dukedelaet/crush-bot/internal/sandbox"
+	"github.com/hocoder-agents/crush-bot/internal/lock"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/sandbox"
 )
 
 type Result struct {

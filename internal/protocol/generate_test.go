@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
 )
 
 func TestWriteCrushrcAndHooks(t *testing.T) {

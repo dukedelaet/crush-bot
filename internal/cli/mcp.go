@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dukedelaet/crush-bot/internal/mesh"
+	"github.com/hocoder-agents/crush-bot/internal/mesh"
 )
 
 func cmdMCP(io IO, _ []string) int {

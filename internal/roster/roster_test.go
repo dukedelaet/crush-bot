@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dukedelaet/crush-bot/internal/soul"
+	"github.com/hocoder-agents/crush-bot/internal/soul"
 )
 
 func TestValidSlug(t *testing.T) {

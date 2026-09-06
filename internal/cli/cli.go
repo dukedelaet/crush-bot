@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/dukedelaet/crush-bot/internal/config"
-	"github.com/dukedelaet/crush-bot/internal/ui"
+	"github.com/hocoder-agents/crush-bot/internal/config"
+	"github.com/hocoder-agents/crush-bot/internal/ui"
 )
 
 const Version = "0.0.1-dev"

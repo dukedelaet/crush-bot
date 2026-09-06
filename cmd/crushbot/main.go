@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/dukedelaet/crush-bot/internal/cli"
+	"github.com/hocoder-agents/crush-bot/internal/cli"
 )
 
 func main() {

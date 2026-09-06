@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dukedelaet/crush-bot/internal/config"
-	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/config"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
 )
 
 var slugRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)

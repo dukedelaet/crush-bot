@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/dukedelaet/crush-bot/internal/sandbox"
+	"github.com/hocoder-agents/crush-bot/internal/sandbox"
 )
 
 func cmdSandboxExec(io IO, args []string) int {

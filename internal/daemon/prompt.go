@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dukedelaet/crush-bot/internal/envelope"
+	"github.com/hocoder-agents/crush-bot/internal/envelope"
 )
 
 func WakePrompt(batch []envelope.Envelope) string {

@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dukedelaet/crush-bot/internal/config"
-	"github.com/dukedelaet/crush-bot/internal/crush"
-	"github.com/dukedelaet/crush-bot/internal/daemon"
-	"github.com/dukedelaet/crush-bot/internal/protocol"
-	"github.com/dukedelaet/crush-bot/internal/roster"
-	"github.com/dukedelaet/crush-bot/internal/sandbox"
-	"github.com/dukedelaet/crush-bot/internal/soul"
+	"github.com/hocoder-agents/crush-bot/internal/config"
+	"github.com/hocoder-agents/crush-bot/internal/crush"
+	"github.com/hocoder-agents/crush-bot/internal/daemon"
+	"github.com/hocoder-agents/crush-bot/internal/protocol"
+	"github.com/hocoder-agents/crush-bot/internal/roster"
+	"github.com/hocoder-agents/crush-bot/internal/sandbox"
+	"github.com/hocoder-agents/crush-bot/internal/soul"
 )
 
 func writeProtocol(p config.Paths, cfg config.Config, bot roster.Bot) error {
