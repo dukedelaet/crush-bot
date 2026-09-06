@@ -36,6 +36,22 @@ func TestAddPathFileWithDirectoryRights(t *testing.T) {
 	}
 }
 
+func TestAddPathDevNull(t *testing.T) {
+	if err := landlockAvailable(); err != nil {
+		t.Skip(err)
+	}
+	attr := rulesetAttr{HandledAccessFS: handledFS}
+	r1, _, errno := unix.Syscall(sysLandlockCreateRuleset, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr), 0)
+	if errno != 0 {
+		t.Fatalf("create ruleset: %v", errno)
+	}
+	fd := int(r1)
+	defer unix.Close(fd)
+	if err := addPath(fd, "/dev/null", accessFile); err != nil {
+		t.Fatalf("dev/null: %v", err)
+	}
+}
+
 func TestWalkDirs(t *testing.T) {
 	got := walkDirs("/home/duke/.local/share/crush/crush.json")
 	want := map[string]bool{

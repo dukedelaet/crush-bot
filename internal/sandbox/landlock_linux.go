@@ -90,17 +90,24 @@ func applyLandlock(bot roster.Bot, root, crushBin, self string) error {
 	if err := addPath(fd, "/", accessWalk); err != nil {
 		return err
 	}
-	for _, p := range append(append([]string{}, ro...), rwPaths(bot, root)...) {
+	rw := rwPaths(bot, root)
+	// Crush's MCP client opens /dev/null writeable when spawning crushbot-mesh.
+	devs := []string{"/dev/null", "/dev/zero", "/dev/full", "/dev/urandom", "/dev/random", "/dev/tty"}
+	for _, p := range append(append([]string{}, ro...), append(rw, devs...)...) {
 		for _, dir := range walkDirs(p) {
 			_ = addPath(fd, dir, accessWalk)
 		}
 	}
-	rw := rwPaths(bot, root)
 	for _, p := range ro {
 		_ = addPath(fd, p, accessRO)
 	}
 	for _, p := range rw {
 		if err := addPath(fd, p, accessRW); err != nil {
+			return err
+		}
+	}
+	for _, p := range devs {
+		if err := addPath(fd, p, accessFile); err != nil {
 			return err
 		}
 	}
