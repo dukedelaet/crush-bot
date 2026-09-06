@@ -386,7 +386,7 @@ func (m Model) View() tea.View {
 
 func (m Model) sidebarView(width, height int) string {
 	var b strings.Builder
-	fmt.Fprintln(&b, titleStyle.Render("crushbot"))
+	fmt.Fprintln(&b, brandLine())
 	fmt.Fprintln(&b, mutedStyle.Render("Charm Crush Powered Bot Mesh"))
 	fmt.Fprintln(&b, mutedStyle.Render(m.status))
 	fmt.Fprintln(&b)

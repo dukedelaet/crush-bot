@@ -10,9 +10,10 @@ import (
 
 	"github.com/hocoder-agents/crush-bot/internal/config"
 	"github.com/hocoder-agents/crush-bot/internal/ui"
+	"github.com/hocoder-agents/crush-bot/internal/version"
 )
 
-const Version = "0.0.1-dev"
+const Version = version.Version
 
 // IO is stdin/stdout/stderr for tests.
 type IO struct {
@@ -158,7 +159,7 @@ func cmdInit(io IO, _ []string) int {
 }
 
 func printHelp(w io.Writer) {
-	fmt.Fprintln(w, headStyle.Render("crushbot"))
+	fmt.Fprintln(w, headStyle.Render("crushbot")+"  "+mutedStyle.Render(Version))
 	fmt.Fprintln(w, mutedStyle.Render("Charm Crush Powered Bot Mesh"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
