@@ -822,7 +822,7 @@ crushbot group chat review
 
 crushbot is a **Charm app**. The binary has two modes:
 
-1. **Interactive (default):** `crushbot` with no args (or `crushbot mesh`) starts a Bubble Tea program: roster, inbox depth, busy, tasks, `@slug` picker. Enter on a bot → `Runner.Chat` (Crush TUI under `turn.lock`). `soul` preview uses Glamour. Confirmations (`delete`) and `spawn` without flags use Huh.
+1. **Interactive (default):** `crushbot` with no args (or `crushbot mesh`) starts a Bubble Tea program: roster, inbox depth, busy, tasks, `@slug` picker. Enter on a bot opens a session transcript view with a prompt (`crush run` under `turn.lock`, same as `say`). Full Crush TUI is `crushbot chat <slug>`. `soul` preview uses Glamour. Confirmations (`delete`) and `spawn` without flags use Huh.
 2. **Scriptable verbs:** same binary, first argv token selects a command. Parsed by `internal/cli` (switch + stdlib `flag`), **not** cobra. Help/errors are Lip Gloss. `--json` on list/show/inbox/tasks for scripts. `mcp` and `daemon` never start Bubble Tea (stdio / background).
 
 ```
@@ -855,7 +855,7 @@ crushbot mcp                            # hidden from casual help; stdio only
 
 **`crushbot mention <bot> <target> <text>`:** guaranteed composer path. `<bot>` and `<target>` are **slugs** (no title aliases). Enqueues `kind: mention_directive` to `<bot>` (`from: user`, hop 0) with body: “The operator asks you to message `@<target>`. Compose your own wording. Substance: \<text\>.” Wakes `<bot>` (daemon or inline if daemon down **and** `--nowait` not set — if daemon down, `say`-style inline wake of `<bot>` only). Does **not** forge a DM from `<bot>` to `<target>`. Unresolvable `<target>` (not a slug in the roster) exits 1 `unknown_bot` without waking anyone.
 
-**`crushbot mesh` / default TUI (v1):** Bubble Tea dashboard — roster + inbox + busy. `@` slug autocomplete (Bubbles). Enter → `chat`. `--plain` prints a Lip Gloss table and exits (scripts/CI).
+**`crushbot mesh` / default TUI (v1):** Bubble Tea dashboard — roster + inbox + busy. `@` slug autocomplete (Bubbles). Enter opens a session transcript + prompt; full Crush TUI is `crushbot chat <slug>`. `--plain` prints a Lip Gloss table and exits (scripts/CI).
 
 `crushbot chat` is **Crush’s TUI**. The host is a launcher under `turn.lock`. Extra Crush sessions the user creates inside that TUI share mesh MCP (non-goal to prevent).
 
@@ -1300,7 +1300,7 @@ Each PR independently reviewable and mergeable. No PR requires a later PR to com
 - **Title:** `feat: mention, broadcast, and Bubble Tea mesh`
 - **Files/components:** `internal/ui` mesh model (Bubbles list/viewport, Lip Gloss), commands `mention`, `broadcast`, `mesh [--plain]`.
 - **Dependencies:** PR 5
-- **Description:** Guaranteed composer (`mention`) with **slug-only** targets (K21). Broadcast hop-0 user DMs. Default `crushbot` / `crushbot mesh` is the Bubble Tea dashboard (`@` slug autocomplete, Enter → `chat`). `--plain` is a Lip Gloss table for scripts. This is v1, not an optional later PR.
+- **Description:** Guaranteed composer (`mention`) with **slug-only** targets (K21). Broadcast hop-0 user DMs. Default `crushbot` / `crushbot mesh` is the Bubble Tea dashboard (`@` slug autocomplete, Enter opens a session transcript + prompt; full Crush TUI is `crushbot chat <slug>`). `--plain` is a Lip Gloss table for scripts. This is v1, not an optional later PR.
 
 ### PR 9 — Doctor polish and user docs
 
