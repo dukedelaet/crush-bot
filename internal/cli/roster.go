@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -9,13 +8,12 @@ import (
 	"os/exec"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/dukedelaet/crush-bot/internal/config"
 	"github.com/dukedelaet/crush-bot/internal/crush"
 	"github.com/dukedelaet/crush-bot/internal/roster"
-	"github.com/dukedelaet/crush-bot/internal/sandbox"
 	"github.com/dukedelaet/crush-bot/internal/soul"
+	"github.com/dukedelaet/crush-bot/internal/spawn"
 )
 
 func cmdSpawn(io IO, args []string) int {
@@ -53,7 +51,7 @@ func cmdSpawn(io IO, args []string) int {
 	}
 	if slug == "" || (*title == "" && *desc == "" && !*coder && interactive()) {
 		s, t, d, c := slug, *title, *desc, *coder
-		if err := spawnForm(&s, &t, &d, &c); err != nil {
+		if err := spawn.Form(&s, &t, &d, &c); err != nil {
 			return fail(io, err)
 		}
 		slug, *title, *desc, *coder = s, t, d, c
@@ -70,26 +68,11 @@ func cmdSpawn(io IO, args []string) int {
 	if err := config.EnsureHome(p); err != nil {
 		return fail(io, err)
 	}
-	bin, err := crushBin(cfg)
-	if err != nil {
-		return fail(io, err)
-	}
-	if err := crush.RequireMin(bin, cfg.MinCrushVersion); err != nil {
-		return fail(io, err)
-	}
-	if err := crush.HasProviders(bin); err != nil {
-		return fail(io, err)
-	}
 	sandboxMode := ""
 	if *sandboxOff {
 		sandboxMode = "off"
 	}
-	if *coder && !*sandboxOff {
-		if err := sandbox.Available(); err != nil {
-			return fail(io, fmt.Errorf("%w (or pass --sandbox-off)", err))
-		}
-	}
-	bot, warns, err := roster.Spawn(p.Home, roster.SpawnOpts{
+	res, err := spawn.Create(p.Home, cfg, spawn.Opts{
 		Slug:        slug,
 		Title:       *title,
 		Description: *desc,
@@ -99,44 +82,25 @@ func cmdSpawn(io IO, args []string) int {
 		Coder:       *coder,
 		Sandbox:     sandboxMode,
 		KeepAlive:   *keepAlive,
-		MaxBots:     cfg.MaxBots,
-		SoulMax:     cfg.SoulMaxBytes,
 	})
 	if err != nil {
 		return fail(io, err)
 	}
-	for _, w := range warns {
+	for _, w := range res.Warns {
 		fmt.Fprintln(io.Err, mutedStyle.Render("warning: "+w))
 	}
-	if err := writeProtocol(p, cfg, bot); err != nil {
-		return fail(io, err)
+	if res.BootErr != nil {
+		fmt.Fprintln(io.Err, mutedStyle.Render("warning: crush bootstrap: "+res.BootErr.Error()))
+		fmt.Fprintln(io.Err, mutedStyle.Render("bot files exist; crushbot doctor "+res.Bot.Slug))
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.TurnLockTimeout+3*time.Minute)
-	defer cancel()
-	bot, err = crush.Bootstrap(ctx, crush.RunOpts{
-		Bot:     bot,
-		Root:    p.Home,
-		Bin:     bin,
-		Timeout: cfg.TurnLockTimeout,
-		Debug:   os.Getenv("CRUSHBOT_DEBUG") == "1",
-		Yolo:    bot.Unattended == "yolo",
-	})
-	if err != nil {
-		fmt.Fprintln(io.Err, mutedStyle.Render("warning: crush bootstrap: "+err.Error()))
-		fmt.Fprintln(io.Err, mutedStyle.Render("bot files exist; crushbot doctor "+bot.Slug))
+	fmt.Fprintln(io.Out, okStyle.Render("spawned "+res.Bot.Slug))
+	fmt.Fprintln(io.Out, "  home", roster.Home(p.Home, res.Bot.Slug))
+	fmt.Fprintln(io.Out, "  soul", roster.SoulPath(p.Home, res.Bot.Slug))
+	if res.Bot.CanonicalSessionID != "" {
+		fmt.Fprintln(io.Out, "  session", res.Bot.CanonicalSessionID)
 	}
-	fmt.Fprintln(io.Out, okStyle.Render("spawned "+bot.Slug))
-	fmt.Fprintln(io.Out, "  home", roster.Home(p.Home, bot.Slug))
-	fmt.Fprintln(io.Out, "  soul", roster.SoulPath(p.Home, bot.Slug))
-	if bot.CanonicalSessionID != "" {
-		fmt.Fprintln(io.Out, "  session", bot.CanonicalSessionID)
-	}
-	if bot.KeepAlive {
-		if err := crush.StartServer(bin, bot, p.Home); err != nil {
-			fmt.Fprintln(io.Err, mutedStyle.Render("warning: keepalive: "+err.Error()))
-		} else {
-			fmt.Fprintln(io.Out, "  keepalive", crush.HostURL(roster.Home(p.Home, bot.Slug)))
-		}
+	if res.Bot.KeepAlive {
+		fmt.Fprintln(io.Out, "  keepalive", crush.HostURL(roster.Home(p.Home, res.Bot.Slug)))
 	}
 	return 0
 }

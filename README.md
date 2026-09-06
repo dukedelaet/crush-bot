@@ -118,7 +118,7 @@ Public lines are `group_say`. `message_bot` in a group round is a private DM.
 crushbot                  # or: crushbot mesh
 ```
 
-`j`/`k` move, `enter` opens `chat`, `r` refreshes, `q` quits. `--plain` prints a table.
+`j`/`k` move, `enter` opens `chat`, `n` spawns a new bot (Huh form), `r` refreshes, `q` quits. `--plain` prints a table.
 
 ### Keep-alive Crush server
 

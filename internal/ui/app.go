@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -13,6 +14,7 @@ import (
 	"github.com/dukedelaet/crush-bot/internal/daemon"
 	"github.com/dukedelaet/crush-bot/internal/envelope"
 	"github.com/dukedelaet/crush-bot/internal/roster"
+	"github.com/dukedelaet/crush-bot/internal/spawn"
 )
 
 var (
@@ -72,10 +74,19 @@ func (m *Model) reload() {
 
 func (m Model) Init() tea.Cmd { return nil }
 
+type spawnDoneMsg struct{ err error }
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+	case spawnDoneMsg:
+		m.reload()
+		if msg.err != nil {
+			m.status = msg.err.Error()
+		} else {
+			m.status = "spawned"
+		}
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
@@ -90,6 +101,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "r":
 			m.reload()
+		case "n":
+			return m, tea.Exec(&spawnWizard{home: m.home}, func(err error) tea.Msg {
+				return spawnDoneMsg{err: err}
+			})
 		case "enter":
 			if len(m.rows) == 0 {
 				break
@@ -142,8 +157,8 @@ func (m Model) View() tea.View {
 		fmt.Fprintln(&b, line)
 	}
 	fmt.Fprintln(&b)
-	fmt.Fprintf(&b, "%s move  %s chat  %s refresh  %s quit\n",
-		keyStyle.Render("j/k"), keyStyle.Render("enter"), keyStyle.Render("r"), keyStyle.Render("q"))
+	fmt.Fprintf(&b, "%s move  %s chat  %s new  %s refresh  %s quit\n",
+		keyStyle.Render("j/k"), keyStyle.Render("enter"), keyStyle.Render("n"), keyStyle.Render("r"), keyStyle.Render("q"))
 	body := b.String()
 	if m.width > 0 {
 		body = boxStyle.Width(m.width).Render(body)
@@ -154,6 +169,27 @@ func (m Model) View() tea.View {
 	v.AltScreen = true
 	return v
 }
+
+type spawnWizard struct {
+	home string
+	in   io.Reader
+	out  io.Writer
+	err  io.Writer
+}
+
+func (w *spawnWizard) Run() error {
+	p := config.ResolvePaths()
+	cfg, err := config.Load(p)
+	if err != nil {
+		return err
+	}
+	_, err = spawn.FromForm(w.home, cfg)
+	return err
+}
+
+func (w *spawnWizard) SetStdin(r io.Reader)  { w.in = r }
+func (w *spawnWizard) SetStdout(o io.Writer) { w.out = o }
+func (w *spawnWizard) SetStderr(e io.Writer) { w.err = e }
 
 func Run(home string) error {
 	p := tea.NewProgram(New(home))
