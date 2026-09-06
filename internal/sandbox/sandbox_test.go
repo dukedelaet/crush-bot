@@ -93,6 +93,20 @@ func TestBwrapArgsBindsCrushPackageDir(t *testing.T) {
 	}
 }
 
+func TestCrushHostPathsIncludesDataDir(t *testing.T) {
+	paths := crushHostPaths()
+	joined := strings.Join(paths, "\n")
+	if !strings.Contains(joined, filepath.Join("share", "crush")) && !strings.Contains(joined, "crush") {
+		t.Fatalf("data dir missing: %v", paths)
+	}
+	home := osHome(t)
+	for _, p := range paths {
+		if p == home {
+			t.Fatalf("must not bind operator HOME: %v", paths)
+		}
+	}
+}
+
 func osHome(t *testing.T) string {
 	t.Helper()
 	h, err := os.UserHomeDir()

@@ -92,7 +92,6 @@ func BwrapArgs(crushBin string, crushArgs []string, bot roster.Bot, root string)
 		absCrush = crushBin
 	}
 	self, _ := os.Executable()
-	xdgCrush := filepath.Join(xdgConfigHome(), "crush")
 	sandboxHome := filepath.Join(home, "sandbox-home")
 	_ = os.MkdirAll(sandboxHome, 0o700)
 	_ = os.MkdirAll(filepath.Join(home, "inbox", "pending"), 0o700)
@@ -117,8 +116,10 @@ func BwrapArgs(crushBin string, crushArgs []string, bot roster.Bot, root string)
 	if self != "" {
 		out = append(out, "--ro-bind-try", self, self)
 	}
+	for _, p := range crushHostPaths() {
+		out = append(out, "--ro-bind-try", p, p)
+	}
 	out = append(out,
-		"--ro-bind-try", xdgCrush, xdgCrush,
 		"--ro-bind", root, root,
 		"--bind", home, home,
 		"--bind", needs, needs,
@@ -149,6 +150,49 @@ func xdgConfigHome() string {
 	}
 	h, _ := os.UserHomeDir()
 	return filepath.Join(h, ".config")
+}
+
+func xdgDataHome() string {
+	if v := os.Getenv("XDG_DATA_HOME"); v != "" {
+		return v
+	}
+	h, _ := os.UserHomeDir()
+	return filepath.Join(h, ".local", "share")
+}
+
+func xdgCacheHome() string {
+	if v := os.Getenv("XDG_CACHE_HOME"); v != "" {
+		return v
+	}
+	h, _ := os.UserHomeDir()
+	return filepath.Join(h, ".cache")
+}
+
+// crushHostPaths are Crush's global config/data/cache dirs (not $HOME).
+func crushHostPaths() []string {
+	home, _ := os.UserHomeDir()
+	seen := map[string]struct{}{}
+	var out []string
+	add := func(p string) {
+		if p == "" {
+			return
+		}
+		if _, ok := seen[p]; ok {
+			return
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+	add("/etc/crush")
+	add(filepath.Join(xdgConfigHome(), "crush"))
+	add(filepath.Join(xdgDataHome(), "crush"))
+	add(filepath.Join(xdgCacheHome(), "crush"))
+	if home != "" {
+		add(filepath.Join(home, ".config", "crush"))
+		add(filepath.Join(home, ".local", "share", "crush"))
+		add(filepath.Join(home, ".cache", "crush"))
+	}
+	return out
 }
 
 // crushRuntimePaths is the Crush install the sandbox must be able to read.
