@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -74,7 +75,10 @@ func (m *Model) reload() {
 
 func (m Model) Init() tea.Cmd { return nil }
 
-type spawnDoneMsg struct{ err error }
+type spawnDoneMsg struct {
+	err  error
+	slug string
+}
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -82,9 +86,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 	case spawnDoneMsg:
 		m.reload()
-		if msg.err != nil {
-			m.status = msg.err.Error()
-		} else {
+		// tea.Exec reports RestoreTerminal errors even when spawn succeeded.
+		if msg.slug != "" {
+			m.status = "spawned @" + msg.slug
+			for i, r := range m.rows {
+				if r.bot.Slug == msg.slug {
+					m.cursor = i
+					break
+				}
+			}
+			break
+		}
+		switch {
+		case msg.err != nil && (errors.Is(msg.err, spawn.ErrAborted) || msg.err.Error() == "cancelled"):
+			m.status = "spawn cancelled"
+		case msg.err != nil:
+			m.status = "spawn failed: " + msg.err.Error()
+		default:
 			m.status = "spawned"
 		}
 	case tea.KeyPressMsg:
@@ -102,8 +120,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			m.reload()
 		case "n":
-			return m, tea.Exec(&spawnWizard{home: m.home}, func(err error) tea.Msg {
-				return spawnDoneMsg{err: err}
+			wiz := &spawnWizard{home: m.home}
+			return m, tea.Exec(wiz, func(err error) tea.Msg {
+				return spawnDoneMsg{err: err, slug: wiz.slug}
 			})
 		case "enter":
 			if len(m.rows) == 0 {
@@ -139,7 +158,7 @@ func (m Model) View() tea.View {
 	fmt.Fprintln(&b)
 	if len(m.rows) == 0 {
 		fmt.Fprintln(&b, "No bots yet.")
-		fmt.Fprintln(&b, mutedStyle.Render("crushbot spawn <slug>"))
+		fmt.Fprintln(&b, mutedStyle.Render("press n, or crushbot spawn <slug>"))
 	}
 	for i, r := range m.rows {
 		mark := " "
@@ -172,6 +191,7 @@ func (m Model) View() tea.View {
 
 type spawnWizard struct {
 	home string
+	slug string
 	in   io.Reader
 	out  io.Writer
 	err  io.Writer
@@ -183,8 +203,22 @@ func (w *spawnWizard) Run() error {
 	if err != nil {
 		return err
 	}
-	_, err = spawn.FromForm(w.home, cfg)
-	return err
+	if err := config.EnsureHome(p); err != nil {
+		return err
+	}
+	// Never feed tea.Exec's cancelreader to Huh — that aborts the form
+	// before Create runs, so refresh has nothing to list.
+	tty, err := spawn.OpenTTY()
+	if err != nil {
+		return fmt.Errorf("spawn form needs a terminal: %w", err)
+	}
+	defer tty.Close()
+	res, err := spawn.FromFormAccessible(w.home, cfg, tty, tty)
+	if err != nil {
+		return err
+	}
+	w.slug = res.Bot.Slug
+	return nil
 }
 
 func (w *spawnWizard) SetStdin(r io.Reader)  { w.in = r }

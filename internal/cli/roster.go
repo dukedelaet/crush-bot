@@ -56,6 +56,7 @@ func cmdSpawn(io IO, args []string) int {
 		}
 		slug, *title, *desc, *coder = s, t, d, c
 	}
+	slug = spawn.NormalizeSlug(slug)
 	if slug == "" {
 		fmt.Fprintln(io.Err, errStyle.Render("usage: crushbot spawn <slug> [flags]"))
 		return 2

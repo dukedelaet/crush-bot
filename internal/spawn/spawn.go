@@ -3,6 +3,7 @@ package spawn
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -33,6 +34,7 @@ type Result struct {
 
 func Create(root string, cfg config.Config, o Opts) (Result, error) {
 	var out Result
+	o.Slug = NormalizeSlug(o.Slug)
 	bin, err := crush.LookPath(cfg.CrushPath)
 	if err != nil {
 		return out, err
@@ -64,6 +66,7 @@ func Create(root string, cfg config.Config, o Opts) (Result, error) {
 	if err != nil {
 		return out, err
 	}
+	out.Bot = bot
 	out.Warns = warns
 	exe, _ := os.Executable()
 	all, _ := roster.List(root, true)
@@ -104,13 +107,34 @@ func Create(root string, cfg config.Config, o Opts) (Result, error) {
 }
 
 func FromForm(root string, cfg config.Config) (Result, error) {
+	return FromFormIO(root, cfg, nil, nil)
+}
+
+func FromFormAccessible(root string, cfg config.Config, in io.Reader, out io.Writer) (Result, error) {
+	return fromForm(root, cfg, in, out, true)
+}
+
+func FromFormIO(root string, cfg config.Config, in io.Reader, out io.Writer) (Result, error) {
+	return fromForm(root, cfg, in, out, false)
+}
+
+func fromForm(root string, cfg config.Config, in io.Reader, out io.Writer, accessible bool) (Result, error) {
 	var slug, title, desc string
 	var coder bool
-	if err := Form(&slug, &title, &desc, &coder); err != nil {
+	var err error
+	if accessible {
+		err = FormAccessible(in, out, &slug, &title, &desc, &coder)
+	} else {
+		err = FormIO(in, out, &slug, &title, &desc, &coder)
+	}
+	if err != nil {
 		return Result{}, err
 	}
 	if slug == "" {
 		return Result{}, fmt.Errorf("cancelled")
+	}
+	if out != nil {
+		fmt.Fprintf(out, "Creating @%s…\n", slug)
 	}
 	return Create(root, cfg, Opts{
 		Slug:        slug,
