@@ -235,6 +235,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "pgdown":
 				m.vp.ScrollDown(5)
 				return m, nil
+			case "up":
+				m.vp.ScrollUp(1)
+				return m, nil
+			case "down":
+				m.vp.ScrollDown(1)
+				return m, nil
+			case "k":
+				if m.in.Value() == "" {
+					m.vp.ScrollUp(1)
+					return m, nil
+				}
+			case "j":
+				if m.in.Value() == "" {
+					m.vp.ScrollDown(1)
+					return m, nil
+				}
 			case "enter":
 				return m.sendChat()
 			}
@@ -525,7 +541,7 @@ func (m Model) helpView(width int) string {
 	switch {
 	case m.focus == focusChat:
 		s = fmt.Sprintf("%s send  %s scroll  %s list  %s quit",
-			keyStyle.Render("enter"), keyStyle.Render("pgup/pgdn"),
+			keyStyle.Render("enter"), keyStyle.Render("pgup/pgdn j/k"),
 			keyStyle.Render("esc"), keyStyle.Render("ctrl+q"))
 	case m.focus == focusInbox:
 		s = fmt.Sprintf("%s move  %s folder  %s chat  %s retry  %s list  %s quit",
