@@ -231,14 +231,20 @@ func Run(ctx context.Context, opts RunOpts) (Result, error) {
 	return res, nil
 }
 
-func Chat(ctx context.Context, opts RunOpts) error {
+// ChatSession is a Crush TUI process that holds turn.lock until Close.
+type ChatSession struct {
+	Cmd  *exec.Cmd
+	Home string
+	Slug string
+	lock *lock.Lock
+}
+
+func BeginChat(opts RunOpts) (*ChatSession, error) {
 	home := BotHome(opts)
 	l, err := acquireTurn(opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer l.Unlock()
-
 	turn := Turn{
 		Bot:       opts.Bot.Slug,
 		SessionID: opts.Bot.CanonicalSessionID,
@@ -248,16 +254,39 @@ func Chat(ctx context.Context, opts RunOpts) error {
 		MaxHops:   8,
 	}
 	if err := WriteTurn(home, turn); err != nil {
-		return err
+		l.Unlock()
+		return nil, err
 	}
-	defer RemoveTurn(home)
-
 	bin, args, err := sandbox.Wrap(opts.Bin, chatArgs(opts), opts.Bot, opts.Root)
+	if err != nil {
+		RemoveTurn(home)
+		l.Unlock()
+		return nil, err
+	}
+	cmd := exec.Command(bin, args...)
+	cmd.Dir = home
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor")
+	return &ChatSession{Cmd: cmd, Home: home, Slug: opts.Bot.Slug, lock: l}, nil
+}
+
+func (s *ChatSession) Close() {
+	if s == nil {
+		return
+	}
+	RemoveTurn(s.Home)
+	if s.lock != nil {
+		s.lock.Unlock()
+		s.lock = nil
+	}
+}
+
+func Chat(ctx context.Context, opts RunOpts) error {
+	s, err := BeginChat(opts)
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, bin, args...)
-	cmd.Dir = home
+	defer s.Close()
+	cmd := s.Cmd
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -273,12 +302,21 @@ func Chat(ctx context.Context, opts RunOpts) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start crush: %w", err)
 	}
-	if err := UpdatePID(home, cmd.Process.Pid); err != nil {
+	if err := UpdatePID(s.Home, cmd.Process.Pid); err != nil {
 		_ = cmd.Process.Kill()
 		_, _ = cmd.Process.Wait()
 		return err
 	}
-	return cmd.Wait()
+	wait := make(chan error, 1)
+	go func() { wait <- cmd.Wait() }()
+	select {
+	case <-ctx.Done():
+		_ = cmd.Process.Signal(syscall.SIGINT)
+		<-wait
+		return ctx.Err()
+	case err := <-wait:
+		return err
+	}
 }
 
 func Stop(botHome string) error {
