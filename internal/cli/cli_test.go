@@ -20,6 +20,12 @@ func TestHelp(t *testing.T) {
 	if strings.Contains(strings.ToLower(out.String()), "cobra") {
 		t.Fatal("help must not mention cobra")
 	}
+	if strings.Contains(strings.ToLower(out.String()), "hermes") {
+		t.Fatal("help must not mention hermes")
+	}
+	if !strings.Contains(out.String(), "Charm Crush Powered Bot Mesh") {
+		t.Fatalf("help: %s", out.String())
+	}
 }
 
 func TestUnknownCommand(t *testing.T) {

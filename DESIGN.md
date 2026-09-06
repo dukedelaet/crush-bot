@@ -1,27 +1,26 @@
-# Crush Bot Mode: Hermes-style Bot Roster for the Terminal
+# Charm Crush Powered Bot Mesh
 
 | Field | Value |
 | --- | --- |
-| **Title** | Crush Bot Mode — CLI clone of Nous Research Hermes Agent Bot Mode, backed by charmbracelet/crush |
+| **Title** | Charm Crush Powered Bot Mesh — terminal roster of Crush workspaces |
 | **Author** | crush-bot maintainers |
 | **Date** | 2026-09-04 |
 | **Status** | Draft (open questions resolved) |
 | **Repo** | `/home/duke/repos/dukedelaet/crush-bot` (empty at design time; greenfield) |
 | **Crush version designed against** | v0.91.2 (`/home/duke/.local/bin/crush`) — **minimum supported** |
-| **Hermes Bot Mode designed against** | Hermes Agent v0.21.0 “Pantheon” / docs as of 2026-09-04 |
 | **License** | MIT |
 
 ---
 
 ## Overview
 
-Hermes Agent **Bot Mode** turns isolated agent profiles into a durable roster of named bots. Each bot has its own identity (`SOUL.md`), model pin, memory, skills, and a canonical forever-chat. Bots `@mention` each other, DM via a `message_agent` tool, sit in group rooms, and hand work off as durable tasks. The desktop app is the primary surface; the CLI (`hermes -p <bot> chat`) is parity.
+**crushbot** is a Charm Crush powered bot mesh: a durable roster of named Crush workspaces. Each bot has its own identity (`soul.md`), optional model pin, memory, skills, and a canonical forever-chat. Bots `@mention` each other, DM via MCP `message_bot`, sit in group rooms, and hand work off as durable tasks. The primary surface is a Charm TUI (`crushbot` / `crushbot mesh`); `crushbot chat <bot>` attaches Crush under `turn.lock`.
 
-This document specifies **crush-bot**: the same *product idea*, rebuilt as a **terminal-first** host whose *agent runtime is Crush*, not Hermes. A bot is a Crush workspace (isolated `--cwd` = bot home, `--data-dir` = `$BOT_HOME/.crush`, one pinned session UUID), not a different LLM harness. Personality lives in a required **`soul.md`**. Inter-bot messages and task handoff are first-class, implemented by a small host daemon plus an MCP tool server that Crush loads per bot.
+This document specifies **crush-bot**: a **terminal-first** host whose *agent runtime is Crush*. A bot is a Crush workspace (isolated `--cwd` = bot home, `--data-dir` = `$BOT_HOME/.crush`, one pinned session UUID). Personality lives in a required **`soul.md`**. Inter-bot messages and task handoff are first-class, implemented by a small host daemon plus an MCP tool server that Crush loads per bot.
 
 The host never reimplements the agent loop. Crush remains the model, tools, MCP client, skills, permissions, and session store. crush-bot owns roster, identity files, routing, turn locks, hop limits, and the CLI the operator uses to inspect the mesh.
 
-**v1 is not a wire-compatible Hermes clone.** DMs are mailbox-and-wake (durable inbox + daemon `crush run`), not Hermes’ immediate background `hermes -p <bot> chat` with a completion-notification reply. Human `@mention` lives in crush-bot CLI/TUI, not inside Crush’s composer. See [Semantic delta vs Hermes](#semantic-delta-vs-hermes).
+**v1 DMs are mailbox-and-wake** (durable inbox + daemon `crush run`). Human `@mention` lives in crush-bot CLI/TUI, not inside Crush’s composer. See [v1 transport model](#v1-transport-model).
 
 ---
 
@@ -38,23 +37,23 @@ The host never reimplements the agent loop. Crush remains the model, tools, MCP 
   - Interactive resume: `crush --session {uuid}` / `crush --continue`.
   - Session CRUD: `crush session list|show|rename|delete|last` (`--json` for scripts). Pin `session last --json` field names in PR 3 from a live run.
   - HTTP API when `CRUSH_CLIENT_SERVER=1` or `crush server`: workspaces keyed by cwd, `POST /v1/workspaces/{id}/agent`, SSE `/events`. **v1 does not use this.**
-  - Context files (`CRUSH.md`, `AGENTS.md`, …) plus `option global-context-path`. These overlay Crush’s built-in `coder.md.tpl`; they do **not** replace slot #1 the way Hermes `SOUL.md` does.
+  - Context files (`CRUSH.md`, `AGENTS.md`, …) plus `option global-context-path`. These overlay Crush’s built-in `coder.md.tpl`; they do **not** replace the system prompt. Identity is `soul.md` + PreToolUse `context`.
   - MCP (`stdio` / `http` / `sse`) and Agent Skills.
   - Permissions: `permissions allow` auto-approves named tools; **`permissions deny` hides a tool**. Omitting a tool from the allow-list still **prompts**. `--yolo` is a root-only flag (`rootCmd.Flags()`, not PersistentFlags); `crush run --yolo` is issue #2792 (open). Do not document `crush --yolo run` until PR 3 measures it.
-- **Hermes Bot Mode** (Nous Research, bundled default-on since v0.20.3, “society” UX in v0.21.0) is the product to clone:
-  - A bot **is a profile**: `~/.hermes/profiles/<name>/` with `SOUL.md`, `config.yaml`, `.env`, memories, sessions, skills, cron.
-  - Canonical **Bot Chat** (title `"Bot Chat"`) is a forever-chat; `/new` is rerouted to compact.
-  - `message_agent(target, message)` is fire-and-forget, roster-validated, attribution-prefixed, **not** a shell-quoted `hermes -p` one-liner (quoting traps #91339/#91304).
-  - Local transport **immediately spawns** `hermes -p <bot> chat --in ~ -c "Bot Chat" --create-if-missing -Q --query-file <tmp>` in the background; the sender’s **next** turn gets the reply as a completion notification. There is **no hop/trace** in `tools/bot_mode_dm.py`. Anti-loop is fire-and-forget + group round caps + prompt text. crush-bot **adds** hop/trace because mailbox delivery can ping-pong without a live child.
-  - Protocol is **injected at prompt-build time**, not written into `SOUL.md`.
-  - Group rooms: 2–6 bots, up to 3 serial rounds, 10 messages per send, `@user` escalation; each member has a `Group: <name>` session.
-  - Durable work uses **Kanban** (named profiles, fire-and-forget queue, idempotency, protocol_violation on dirty exit) as distinct from `delegate_task` (anonymous RPC fork/join).
-  - Hermes profiles claim “no background daemons”; Desktop is the courier for cross-connection DMs. crush-bot **does** run a host daemon — that is an honest difference.
+- **crushbot** is the Charm host around those Crush workspaces:
+  - A bot **is a directory**: `$CRUSHBOT_HOME/bots/<slug>/` with `soul.md`, `bot.yaml`, memories, sessions, skills.
+  - Canonical forever-chat is a Crush session **UUID** titled `bot:<slug>`. Crush `/new` is not intercepted.
+  - `message_bot(target, message)` is fire-and-forget, roster-validated, attribution-prefixed MCP — Crush never shells `crushbot`.
+  - Transport is **mailbox-and-wake**: write inbox JSON, daemon later runs `crush run --session <uuid>`. Hop/trace live in host-owned `turn.json` because mailbox delivery can ping-pong without a live child.
+  - Protocol lives in generated `protocol.md`, never written into `soul.md`.
+  - Group rooms: 2–6 bots, up to 3 serial rounds, 10 messages per send; each member has a dedicated Crush session UUID in `bot.yaml.group_sessions`.
+  - Durable work is a **file task queue** (`assign_task`, idempotency, `protocol_violation` on dirty exit), distinct from a chat DM.
+  - The host **does** run `crushbot daemon` — it is the courier that wakes idle Crush processes.
 
 ### Pain points this product addresses
 
 1. Crush is excellent as *one* coding agent in a project directory. It has no roster, no named persistent identities, no inter-agent bus.
-2. Hermes Bot Mode’s primary surface is a desktop GUI. Operators who live in tmux/ssh need the same mesh in a CLI.
+2. Crush’s primary surface is one agent in one directory. Operators who live in tmux/ssh need a named mesh of Crush bots in a CLI.
 3. Driving Crush by hand (`crush --cwd A` in one pane, `crush --cwd B` in another) does not give a shared roster, task queue, or hop limits.
 
 ---
@@ -79,19 +78,19 @@ The host never reimplements the agent loop. Crush remains the model, tools, MCP 
 
 - Desktop/web GUI as a primary surface.
 - **Crush TUI composer plugins / in-Crush `@` middleware.** Crush’s TUI has no roster. Instruct `protocol.md` that operator text naming `@slug` should call `message_bot`; do not patch Crush.
-- Hermes Desktop multi-connection relay, `hermes peer`, NAT traversal, SSH inventory of remote gateways.
+- Multi-connection relay, peer discovery, NAT traversal, SSH inventory of remote gateways.
 - Pixel pets, blob-face avatars, Discord-style room pictures (TUI may show a 1-char glyph / Lip Gloss color).
 - **spf13/cobra, charmbracelet/fang, spf13/pflag, urfave/cli.** crushbot is a Charm app (Bubble Tea + Lip Gloss + Huh). Crush itself uses cobra via fang; we still do not — wrapping Crush does not mean copying its CLI framework.
 - Forking or patching Crush. If Crush is missing a flag, wrap around it.
 - Replacing Crush’s permission system, MCP client, or skills loader.
 - Cross-machine mesh (v1 is single-host).
-- Full Hermes Kanban UI / `delegate_task` live-steer.
-- Marketplace / profile distributions (`hermes profile install github.com/...`).
+- Full Kanban UI / live-steer RPC forks.
+- Marketplace / profile distributions (`crushbot spawn` clones local souls; no remote install URL in v1).
 - Voice mode, Telegram/Discord gateways.
 - **Using a project directory as Crush `--cwd`.** v1 `--cwd` is always the bot home so generated `crushrc` loads. A `project` path is advisory text in `protocol.md`.
-- Intercepting Crush TUI `/new` (the user can still fork extra sessions in the same `--data-dir`; those sessions also see mesh MCP — Crush cannot title-gate like `"Bot Chat"`).
-- Hermes-identical DM transport (immediate child + completion notification as the *delivery* mechanism). v1 is mailbox-and-wake; FYI `kind: receipt` only after `kind: dm` wakes (below).
-- **Per-bot API keys / forked OAuth.** v1 shares the operator’s Crush login and process env (Hermes-style). `bot.yaml.model` may pin a model id only.
+- Intercepting Crush TUI `/new` (the user can still fork extra sessions in the same `--data-dir`; those sessions also see mesh MCP — Crush cannot title-gate the canonical session).
+- Immediate `crush run` child from MCP as the *delivery* mechanism. v1 is mailbox-and-wake; FYI `kind: receipt` only after `kind: dm` wakes (below).
+- **Per-bot API keys / forked OAuth.** v1 shares the operator’s Crush login and process env. `bot.yaml.model` may pin a model id only.
 - **Friendly-name @aliases** (`@research-buddy`). v1 handles are **slugs only** (`@researcher`).
 - **Always-on / keep-alive Crush server in v1.** Idle-spawn only. PR 10 stays optional after dogfood.
 - **SessionStart-style slot #1 replacement** (Crush has no such hook). v1 uses PreToolUse `context` injection plus `global-context-path` / `CRUSH.md` instead.
@@ -104,60 +103,60 @@ The host never reimplements the agent loop. Crush remains the model, tools, MCP 
 | --- | --- | --- |
 | K1 | **Host wraps Crush as an external binary.** Do not import `github.com/charmbracelet/crush` as a library. | Crush’s public contract is the CLI. `internal/` is not a supported SDK. |
 | K2 | **A bot = one Crush workspace:** `--cwd` **always** `$BOT_HOME`, `--data-dir` `$BOT_HOME/.crush`, one pinned canonical session **UUID**. | Crush loads crushrc from **cwd**. Mixing a project `--cwd` drops mesh MCP, soul injection, and deny-lists. |
-| K3 | **`soul.md` is mandatory, user-owned, never overwritten after seed.** Mesh protocol lives in generated `protocol.md`. | Hermes stopped appending A2A protocol into `SOUL.md`. |
+| K3 | **`soul.md` is mandatory, user-owned, never overwritten after seed.** Mesh protocol lives in generated `protocol.md`. | Protocol in `soul.md` fights user edits; keep identity user-owned. |
 | K4 | **Identity = overlay files + v1 PreToolUse hook.** `option global-context-path` (`soul.md`, `protocol.md`) + generated `CRUSH.md` (hard first line) still load at session start. Crush has **no SessionStart / slot #1**. A generated PreToolUse hook emits native `{"context": …}` (soul head + identity line) before **every** tool so coding turns cannot bury the persona. | Crush `coder.md.tpl` still wins the system prompt; hook `context` is the supported reminder channel (native envelope, not Claude `additionalContext`). |
-| K5 | **Inter-bot tools are an MCP server** (`crushbot mcp`). Crush never shells out to `crushbot`. Hop/trace are **not** MCP params; they come from host-owned `turn.json`. | Shelling `hermes -p` was quote-fragile. Models must not supply hop. |
-| K6 | **Idle bots have no Crush process.** Daemon wakes one `crush run --session <uuid>` then exits. **Mailbox-and-wake**, not Hermes immediate-child delivery. | RAM/token cost tracks activity. Honest semantic delta vs Hermes. |
-| K7 | **One exclusive `turn.lock` for any Crush process on that bot** — daemon wake, `say`, and `chat`. | Two Crush processes on one `--data-dir` corrupt SQLite (#2682 analog of Hermes #93091). |
-| K8 | **Tasks are a first-class queue**, not a special chat message. | Hermes Kanban ≠ `delegate_task`. Operators asked for task handoff. |
-| K9 | **DMs are fire-and-forget mailbox.** After a successful **`kind: dm` wake only**, the daemon may enqueue one FYI `kind: receipt` per unique non-`user` `inbound.from` (hop+1, **`hop_limit` only** — receipts skip `to ∈ trace`). Replies via `message_bot` to `inbound.from` are **allowed**; A↔B is bounded by **hop 8 + fanout**, not a path-cycle reject. Receipts never generate further receipts. Tasks notify via `task_complete` (`kind: receipt`). | `to ∈ trace` made receipts and replies impossible (A is already on B’s inbound trace). Hermes allows the target to talk back. |
+| K5 | **Inter-bot tools are an MCP server** (`crushbot mcp`). Crush never shells out to `crushbot`. Hop/trace are **not** MCP params; they come from host-owned `turn.json`. | Shelling the host from Crush is quote-fragile. Models must not supply hop. |
+| K6 | **Idle bots have no Crush process.** Daemon wakes one `crush run --session <uuid>` then exits. **Mailbox-and-wake**, not an immediate child from MCP. | RAM/token cost tracks activity. See [v1 transport model](#v1-transport-model). |
+| K7 | **One exclusive `turn.lock` for any Crush process on that bot** — daemon wake, `say`, and `chat`. | Two Crush processes on one `--data-dir` corrupt SQLite (#2682). |
+| K8 | **Tasks are a first-class queue**, not a special chat message. | Chat DMs cannot express blocked/retry/idempotency. Operators asked for task handoff. |
+| K9 | **DMs are fire-and-forget mailbox.** After a successful **`kind: dm` wake only**, the daemon may enqueue one FYI `kind: receipt` per unique non-`user` `inbound.from` (hop+1, **`hop_limit` only** — receipts skip `to ∈ trace`). Replies via `message_bot` to `inbound.from` are **allowed**; A↔B is bounded by **hop 8 + fanout**, not a path-cycle reject. Receipts never generate further receipts. Tasks notify via `task_complete` (`kind: receipt`). | `to ∈ trace` made receipts and replies impossible (A is already on B’s inbound trace). The target must be able to talk back. |
 | K10 | **Go + Charm-only UI.** Binary **`crushbot`**. Libraries: `charm.land/bubbletea/v2`, `charm.land/lipgloss/v2`, `charm.land/bubbles/v2`, `charm.land/huh`, `charm.land/glamour/v2`, `github.com/charmbracelet/log`. **No cobra, no fang, no pflag.** Interactive default is Bubble Tea. Headless verbs (`mcp`, `daemon`, `say`, `--json`) use a ~100-line in-repo argv router + stdlib `flag` + Lip Gloss help. | This is a Charm app that *drives* Crush. Fang is still cobra. Competing CLI frameworks fight the product. |
 | K11 | **v1 is single-host.** | Prove the mesh on one box first. |
 | K12 | **Unattended crushrc must `permissions deny` hidden tools** (default: `bash` and `edit`). Allow-list alone still prompts and hangs `crush run`. `--yolo` is opt-in and **undocumented** until measured. | Crush deny-vs-allow semantics; #2792. |
 | K13 | **`--cwd` is always bot home.** `bot.yaml.project` is an absolute path printed in `protocol.md` / `CRUSH.md` for the model to `cd`/`view`, not Crush cwd. | Generated crushrc must load. |
 | K14 | **Hop context is `$BOT_HOME/turn.json`**, written before every Crush spawn (including `say`/`chat`). MCP reads it. Ping-pong bound is **hop + fanout**, not “target already in trace.” | Path-cycle (`to ∈ trace`) forbids the reverse DM/receipt. Trace remains for display and hop accounting. |
-| K15 | **License: MIT.** | Matches Hermes; Crush is FSL-1.1-MIT (compatible as a *user* of the binary, not a fork). |
+| K15 | **License: MIT.** | crushbot is MIT. Crush is FSL-1.1-MIT (compatible as a *user* of the binary, not a fork). |
 | K16 | **Minimum Crush version: 0.91.2** (the version this doc was designed against). | `run --session` is v0.50; crushrc / `global-context-path` / `mcp add --env` need current Crush. |
-| K17 | **Groups default off** (`experimental.groups: false`) until PR 7. When on, each membership gets a **dedicated Crush session UUID** (`group_sessions` in `bot.yaml`), not the canonical forever-chat. | Canonical pollution fights identity isolation. Hermes uses `Group: <name>` sessions. |
+| K17 | **Groups default off** (`experimental.groups: false`) until PR 7. When on, each membership gets a **dedicated Crush session UUID** (`group_sessions` in `bot.yaml`), not the canonical forever-chat. | Canonical pollution fights identity isolation. Rooms get their own Crush session UUID. |
 | K18 | **Mesh MCP is a bearer secret + roster/cwd bind**, not HMAC, and does not stop a malicious same-user Crush. | Single-user workstation threat model. Extra sessions in the same `--data-dir` also see the tools (no title gate). |
-| K19 | **v1 shares the operator’s Crush login** (env + `~/.config/crush`). No per-bot `.env` / API keys. | User decision. Hermes shares OAuth for the same refresh-token reason. Model pin is `--model` only. |
+| K19 | **v1 shares the operator’s Crush login** (env + `~/.config/crush`). No per-bot `.env` / API keys. | User decision. Sharing the Crush login avoids forked OAuth refresh tokens. Model pin is `--model` only. |
 | K20 | **Idle-spawn only in v1.** No keep-alive `crush server`. | User decision. PR 10 remains optional after dogfood. |
-| K21 | **@mentions are slugs only** (`^[a-z][a-z0-9-]{0,62}$`). No title-derived aliases. | User decision. Avoids Hermes rename/tag sync in v1. |
+| K21 | **@mentions are slugs only** (`^[a-z][a-z0-9-]{0,62}$`). No title-derived aliases. | User decision. Avoids rename/tag sync in v1. |
 | K22 | **Sandbox Crush when `bash` or `edit` is enabled** (Linux): prefer `bwrap`, else landlock helper. Fail closed if neither is available, unless `bot.yaml.sandbox: off`. | User decision. Default bots deny bash/edit and need no sandbox. |
 
 ---
 
 ## Proposed Design
 
-### 1. Product mapping (Hermes → crush-bot)
+### 1. Product mapping
 
-| Hermes | crush-bot |
+| Concept | crush-bot |
 | --- | --- |
-| Profile `~/.hermes/profiles/<name>/` | Bot home `$CRUSHBOT_HOME/bots/<slug>/` |
-| `SOUL.md` (slot #1 identity) | **`soul.md`** overlay via `global-context-path` (not slot #1) |
-| `config.yaml` + `.env` | `bot.yaml` + bot `crushrc`. Provider keys stay in the user’s global Crush config / env |
-| Canonical session titled `"Bot Chat"` | Crush session **UUID** in `canonical_session_id`; **title** `bot:<slug>` |
-| `message_agent` → immediate `hermes -p` child | MCP `message_bot` → inbox JSON → daemon `crush run --session <uuid>` |
-| Kanban / handoff | MCP `assign_task` / `task_*` + `$BOT_HOME/tasks/` |
-| Group chat 2–6, 3 rounds, `Group: name` session | `crushbot group` + per-membership session UUID; flag default off |
-| `hermes -p <bot> chat` | `crushbot chat <bot>` → `crush --cwd $BOT_HOME --data-dir $BOT_HOME/.crush --session <uuid>` under `turn.lock` |
-| Desktop `@` composer middleware | `crushbot mention`, `crushbot mesh` composer; Crush TUI has none |
-| Desktop roster | `crushbot list` / `crushbot mesh` (table first; Bubble Tea optional) |
-| `bot_mode_protocol` prompt section | generated `protocol.md` |
-| Typed failure reasons (#93091) | JSON `reason` on MCP results; see enum below |
-| “No background daemons” | **We run `crushbot daemon`.** It is the courier. |
+| Bot home | `$CRUSHBOT_HOME/bots/<slug>/` |
+| Identity | **`soul.md`** overlay via `global-context-path` (Crush has no slot #1) |
+| Config | `bot.yaml` + bot `crushrc`. Provider keys stay in the user’s global Crush config / env |
+| Canonical session | Crush session **UUID** in `canonical_session_id`; **title** `bot:<slug>` |
+| Inter-bot DM | MCP `message_bot` → inbox JSON → daemon `crush run --session <uuid>` |
+| Task handoff | MCP `assign_task` / `task_*` + `$BOT_HOME/tasks/` |
+| Group chat | `crushbot group` + per-membership session UUID; flag default off |
+| Attach | `crushbot chat <bot>` → `crush --cwd $BOT_HOME --data-dir $BOT_HOME/.crush --session <uuid>` under `turn.lock` |
+| Human `@mention` | `crushbot mention`, `crushbot mesh` composer; Crush TUI has none |
+| Roster | `crushbot list` / `crushbot mesh` (Bubble Tea; `--plain` table) |
+| Mesh protocol | generated `protocol.md` |
+| Typed failure reasons | JSON `reason` on MCP results; see enum below |
+| Courier | **`crushbot daemon`** wakes idle Crush processes |
 
-### Semantic delta vs Hermes
+### v1 transport model
 
-| Behavior | Hermes | crush-bot v1 |
-| --- | --- | --- |
-| DM delivery | Ack, then **spawn target Bot Chat immediately** in background; reply is a completion notification on the sender’s **next** turn | Ack `{status:queued\|sent}`, write inbox, **daemon later** runs `crush run`. Sender is not blocked. |
-| DM reply | Automatic: target’s stdout becomes the notification | Target **may** `message_bot` the sender (`to ∈ trace` is **not** a reject). Independently, after a successful **`kind: dm` wake**, the daemon posts a FYI `kind: receipt` (last assistant text from `crush session show <uuid> --json`, **4096 characters** max) to each unique non-`user` `inbound.from`. Host receipts skip path-cycle; they still take hop+1 and drop on `hop_limit` + `needs_you`. Receipts do **not** generate further receipts. |
-| Anti-loop | Prompt + group caps; **no hop/trace** in `message_agent` | **hop 8 + fanout 4** (32 in TUI). v1 does **not** reject `message_bot` because the target already appears in `trace` (that *is* a reply). Trace is still recorded and shown in the wake prompt. |
-| Courier | Desktop (cross-machine) or in-process spawn (local) | **`crushbot daemon` is required for the mesh.** CLI `say`/`chat` work without it. |
-| Human `@mention` | Composer middleware resolves roster and tells the active bot to `message_agent` | `crushbot mention <bot> <target> <text>` wakes `<bot>` with a directive; Crush TUI `@` is honor-system via `protocol.md` |
-| Hide | Display-only; mentions still resolve | Same |
-| `/new` in forever-chat | Rerouted to compact | **Not intercepted.** Extra sessions share `--data-dir` and mesh MCP |
+| Behavior | crush-bot v1 |
+| --- | --- |
+| DM delivery | Ack `{status:queued\|sent}`, write inbox, **daemon later** runs `crush run`. Sender is not blocked. |
+| DM reply | Target **may** `message_bot` the sender (`to ∈ trace` is **not** a reject). Independently, after a successful **`kind: dm` wake**, the daemon posts a FYI `kind: receipt` (last assistant text from `crush session show <uuid> --json`, **4096 characters** max) to each unique non-`user` `inbound.from`. Host receipts skip path-cycle; they still take hop+1 and drop on `hop_limit` + `needs_you`. Receipts do **not** generate further receipts. |
+| Anti-loop | **hop 8 + fanout 4** (32 in TUI). v1 does **not** reject `message_bot` because the target already appears in `trace` (that *is* a reply). Trace is still recorded and shown in the wake prompt. |
+| Courier | **`crushbot daemon` is required for the mesh.** CLI `say`/`chat` work without it. |
+| Human `@mention` | `crushbot mention <bot> <target> <text>` wakes `<bot>` with a directive; Crush TUI `@` is honor-system via `protocol.md` |
+| Hide | Display-only; mentions still resolve |
+| `/new` in Crush | **Not intercepted.** Extra sessions share `--data-dir` and mesh MCP |
 
 ### 2. Architecture
 
@@ -215,9 +214,9 @@ If the daemon is **not** running:
 
 - `crushbot say` / `crushbot chat` still work (they take `turn.lock` and spawn Crush).
 - `message_bot` / `assign_task` **still persist** to disk and return `{status:"queued", id}` — **not** `runtime_offline`. Protocol: never retry `queued` or `sent`.
-- `runtime_offline` is reserved for **nothing persisted** (disk full, lock on the inbox file, roster IO error, courier refused before write). Hermes #93091 fail-closed.
+- `runtime_offline` is reserved for **nothing persisted** (disk full, lock on the inbox file, roster IO error, courier refused before write). Fail closed.
 
-The daemon **is required** for another bot to be woken. Operators who want the mesh run the daemon. This is honest: Hermes local DMs spawn the target immediately; we do not.
+The daemon **is required** for another bot to be woken. Operators who want the mesh run the daemon. `say`/`chat` still work without it; they do not wake a teammate.
 
 On daemon **shutdown** (SIGTERM): stop accepting new wakes; SIGINT every child Crush recorded in `turn.json`; wait 10s; SIGKILL; release flocks. Do not leave orphan Crush processes holding SQLite.
 
@@ -403,7 +402,7 @@ Written by the host after lock, **before `Start()`**, with `crush_pid: 0`. After
 | `broadcast` | origin envelope; target wake is `kind:wake` | hop `0`, `from: user` | `["user"]` | n/a on origin |
 | `group_round` | group daemon | DM hop **not** incremented; `group_id` set | unused for DM cycle | **4** (private `message_bot`); `max_group_sends` **10** (`group_say` only) |
 
-Hermes caps fan-out **per model turn**. `crushbot chat` holds one `turn.json` for the whole TUI session, so a cap of 4 would lock the operator out after four mesh calls. v1 uses 32 for `human_chat` and documents the missing per-turn reset (out of v1: would need a Crush hook that crushbot cannot use to mutate `turn.json` safely mid-TUI without races). Daemon `wake` / `say` stay at 4.
+A per-assistant-turn fan-out cap does not fit `crushbot chat`: it holds one `turn.json` for the whole TUI session, so a cap of 4 would lock the operator out after four mesh calls. v1 uses 32 for `human_chat` and documents the missing per-turn reset (out of v1: would need a Crush hook that crushbot cannot use to mutate `turn.json` safely mid-TUI without races). Daemon `wake` / `say` stay at 4.
 
 **Coalescing:** pending files sorted by ULID (time-sortable). Take up to `coalesce_inbox` (8) or 32 KiB of JSON. `parent_id` = first ULID. `inbound_hop` = max hop. `trace` = unique concatenation.
 
@@ -450,7 +449,7 @@ Injection order (Crush still prepends `coder.md.tpl` — this is overlay, not re
 
 `protocol.md` regenerates on roster/group/limit change (capability epoch). Never appended to `soul.md`.
 
-**Prompt-injection (warn-only, not a classifier).** Substring list (case-insensitive), copied in spirit from Hermes scanners — exact list lives in `internal/soul/scan.go` and starts with:
+**Prompt-injection (warn-only, not a classifier).** Substring list (case-insensitive) lives in `internal/soul/scan.go` and starts with:
 
 - `ignore previous instructions`
 - `ignore all previous`
@@ -547,7 +546,7 @@ Regenerated by the host. Contains:
 
 Limits:
 
-- `body` max **16000 characters** (Hermes `MESSAGE_MAX_CHARS`). Load-table “envelope body” is **16000 chars**, not 16 KiB.
+- `body` max **16000 characters**. Load-table “envelope body” is **16000 chars**, not 16 KiB.
 - `hop` max **8** (`mesh.max_hops`). Human origin hop is **0**.
 - **No path-cycle reject** on `to ∈ trace` (that is a reply). Still reject `to == self` (`self_message`) and `hop > max_hops` (`hop_limit`).
 
@@ -681,7 +680,7 @@ MCP **cannot** see `max_parallel`. Parallel fullness is daemon-side: envelopes s
 2. Bearer secret `CRUSHBOT_MCP_TOKEN` compared to `$BOT_HOME/.mcp_token`. Also require `CRUSHBOT_BOT` is a real slug, `CRUSHBOT_DATA_DIR` resolves to that bot’s `.crush`, and cwd is that `$BOT_HOME`. This stops a Crush launched in a **different** directory with a guessed env. It does **not** stop a malicious same-user process that reads `.mcp_token` (0700 is cross-user only). Threat model: single-user workstation.
 3. Tools never invoke a shell. They write JSON; the daemon (or CLI under lock) is the only Crush spawner.
 
-Typed `reason` codes (Hermes #93091-aligned plus crush-bot extras):
+Typed `reason` codes:
 
 `unknown_bot`, `self_message`, `recursion_cycle`, `hop_limit`, `fanout_limit`, `message_too_long`, `runtime_offline`, `target_busy`, `delivery_timeout`, `provider_rate_limit`, `provider_server_error`, `provider_auth_or_access`, `provider_quota_limit`, `context_overflow`, `missing_config`, `model_unavailable`, `queued_expired`, `protocol_violation`, `need_human`, `unknown`.
 
@@ -780,7 +779,7 @@ sequenceDiagram
 
 - 2–6 members, operator-created.
 - Caps: `max_rounds=3`, `max_msgs_per_send=10` (**MCP-enforced** on `group_say` via `turn.json.group_sends`; over cap → `fanout_limit`). **`message_bot` in a `group_round` is a private DM:** it increments the DM `sends` cap (4), is **not** copied to `transcript.jsonl`, and does **not** increment `group_sends` — even if `target` is an in-scope member. Dedicated `group_sessions` stay clean; side-channel DMs stay off the room record.
-- **Dedicated session UUID per (bot, group)** in `bot.yaml.group_sessions.<group_id>`. Bootstrap on first join. Canonical forever-chat is **not** used. This is the Hermes `Group: <name>` analog.
+- **Dedicated session UUID per (bot, group)** in `bot.yaml.group_sessions.<group_id>`. Bootstrap on first join. Canonical forever-chat is **not** used.
 
 ```
 crushbot group create review researcher coder reviewer
@@ -1121,7 +1120,7 @@ Attractive: SSE, `IsBusy`. **Rejected for v1** — first-wins `--yolo`/`--debug`
 
 ### C. Protocol in `soul.md`
 
-**Rejected.** Hermes moved it out.
+**Rejected.** Mesh protocol belongs in generated `protocol.md`, not user-owned `soul.md`.
 
 ### D. Tasks as ordinary DMs
 
@@ -1139,7 +1138,7 @@ Attractive: SSE, `IsBusy`. **Rejected for v1** — first-wins `--yolo`/`--debug`
 
 **Rejected.** Pollutes the project; easy to commit secrets/token. Advisory `project` path instead.
 
-### H. Hermes-identical immediate `crush run` child from MCP (no daemon)
+### H. Immediate `crush run` child from MCP (no daemon)
 
 **Rejected for v1.** MCP would spawn Crush while the sender still holds `turn.lock` / is inside Crush — nested agents and lock inversion. Mailbox + daemon is the adaptation. Receipts recover reply UX.
 
@@ -1206,11 +1205,6 @@ No open product questions remain.
 
 ## References
 
-- Hermes Bot Mode: https://hermes-agent.nousresearch.com/docs/user-guide/bot-mode
-- Hermes profiles: https://hermes-agent.nousresearch.com/docs/user-guide/profiles
-- Hermes SOUL.md: https://hermes-agent.nousresearch.com/docs/guides/use-soul-with-hermes
-- Hermes `message_agent`: `tools/bot_mode_dm.py` (v2026.8.31) — no hop/trace; immediate background chat
-- Hermes Kanban vs `delegate_task`: https://hermes-agent.nousresearch.com/docs/user-guide/features/kanban
 - Crush README / crushrc (cwd discovery, `option global-context-path`, MCP): https://github.com/charmbracelet/crush
 - Crush architecture: https://github.com/charmbracelet/crush/blob/main/AGENTS.md
 - Crush CLI: `internal/cmd/root.go` (`--yolo` non-persistent; `--cwd`; `--data-dir`; `--session` UUID)
@@ -1231,7 +1225,7 @@ No open product questions remain.
 | crushrc not loaded if cwd ≠ bot home | **High** | cwd always bot home (K2/K13) |
 | `crush run` hangs on permission prompt | **High** | `permissions deny` hidden tools; coding bots opt in bash/edit |
 | soul buried under `coder.md.tpl` | **Medium** | `CRUSH.md` hard line + PreToolUse `context` hook (K4); §5 checklist |
-| Mailbox UX ≠ Hermes reply notification | **Medium** | receipts after wake; protocol text; semantic-delta section |
+| Mailbox UX vs live reply | **Medium** | receipts after wake; protocol text; [v1 transport model](#v1-transport-model) |
 | Spawn overhead / group rounds | **Medium** | coalesce; groups off by default; keep-alive is **not** v1 (K20) |
 | TUI scope blowup | **Medium** | Bubble Tea is the product; keep models thin; `--plain` / `--json` for scripts; `mcp`/`daemon` never start tea |
 | MCP tool permission names wrong | **Low** | verify in PR 3 before freezing templates |
@@ -1311,7 +1305,7 @@ Each PR independently reviewable and mergeable. No PR requires a later PR to com
 ### PR 9 — Doctor polish and user docs
 
 - **Title:** `docs: soul/mesh user guide and doctor checks`
-- **Files/components:** README, `docs/soul.md`, `docs/mesh.md`, doctor extras, Hermes mapping (semantic delta).
+- **Files/components:** README, `docs/soul.md`, `docs/mesh.md`, `docs/mesh-model.md`, doctor extras.
 - **Dependencies:** PR 5–8 as available
 - **Description:** No duplicate hop unit tests (those landed in PR 4). E2E script: two bots, daemon, `message_bot`, assert archive + receipt. Identity checklist from §5 (hook + overlay). Sandbox doctor checks.
 

@@ -153,7 +153,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() tea.View {
 	var b strings.Builder
 	fmt.Fprintln(&b, titleStyle.Render("crushbot"))
-	fmt.Fprintln(&b, mutedStyle.Render("Hermes-style bot roster · Crush backend"))
+	fmt.Fprintln(&b, mutedStyle.Render("Charm Crush Powered Bot Mesh"))
 	fmt.Fprintln(&b, mutedStyle.Render(m.status))
 	fmt.Fprintln(&b)
 	if len(m.rows) == 0 {

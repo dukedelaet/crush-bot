@@ -159,7 +159,7 @@ func cmdInit(io IO, _ []string) int {
 
 func printHelp(w io.Writer) {
 	fmt.Fprintln(w, headStyle.Render("crushbot"))
-	fmt.Fprintln(w, mutedStyle.Render("Charm app · Crush-backed bot roster"))
+	fmt.Fprintln(w, mutedStyle.Render("Charm Crush Powered Bot Mesh"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  crushbot                 "+mutedStyle.Render("open the mesh TUI"))

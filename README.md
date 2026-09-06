@@ -1,6 +1,6 @@
 # crushbot
 
-A terminal clone of [Hermes Agent Bot Mode](https://hermes-agent.nousresearch.com/docs/user-guide/bot-mode). Each bot is a named Crush workspace with a required `soul.md`. Bots DM each other, hand off tasks, and sit in group rooms. The host is a Charm app (Bubble Tea, Lip Gloss, Huh) — not cobra.
+A [Charm](https://charm.sh) Crush powered bot mesh. Each bot is a named [Crush](https://github.com/charmbracelet/crush) workspace with a required `soul.md`. Bots DM each other, hand off tasks, and sit in group rooms. The host is a Charm app (Bubble Tea, Lip Gloss, Huh) — not cobra.
 
 ## How to install
 
@@ -144,7 +144,7 @@ crushbot doctor --check               # exit 2 if needs_you or failed mail
 
 - [docs/soul.md](docs/soul.md) — identity files
 - [docs/mesh.md](docs/mesh.md) — DMs, tasks, groups, daemon
-- [docs/hermes-delta.md](docs/hermes-delta.md) — what is not a wire clone of Hermes
+- [docs/mesh-model.md](docs/mesh-model.md) — how Crush workspaces become a mesh
 - [DESIGN.md](./DESIGN.md) — full spec
 
 ```bash
