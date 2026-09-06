@@ -110,7 +110,9 @@ func BwrapArgs(crushBin string, crushArgs []string, bot roster.Bot, root string)
 		"--ro-bind-try", "/lib64", "/lib64",
 		"--ro-bind-try", "/etc/ssl", "/etc/ssl",
 		"--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf",
-		"--ro-bind-try", absCrush, absCrush,
+	}
+	for _, p := range crushRuntimePaths(absCrush) {
+		out = append(out, "--ro-bind-try", p, p)
 	}
 	if self != "" {
 		out = append(out, "--ro-bind-try", self, self)
@@ -147,4 +149,58 @@ func xdgConfigHome() string {
 	}
 	h, _ := os.UserHomeDir()
 	return filepath.Join(h, ".config")
+}
+
+// crushRuntimePaths is the Crush install the sandbox must be able to read.
+// The npm package is a symlink (~/.local/bin/crush → …/@charmland/crush/run-crush.js)
+// plus sibling lib.js, node_modules, and bin/crush. Binding only the symlink
+// yields EACCES on lib.js.
+func crushRuntimePaths(crushBin string) []string {
+	abs, err := exec.LookPath(crushBin)
+	if err != nil || abs == "" {
+		abs = crushBin
+	}
+	if abs == "" {
+		return nil
+	}
+	if !filepath.IsAbs(abs) {
+		if a, err := filepath.Abs(abs); err == nil {
+			abs = a
+		}
+	}
+	seen := map[string]struct{}{}
+	var out []string
+	add := func(p string) {
+		if p == "" {
+			return
+		}
+		if _, ok := seen[p]; ok {
+			return
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+	add(abs)
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return out
+	}
+	add(real)
+	dir := filepath.Dir(real)
+	if fileExists(filepath.Join(dir, "lib.js")) || fileExists(filepath.Join(dir, "package.json")) {
+		add(dir)
+	}
+	nested := filepath.Join(dir, "bin", "crush")
+	if fileExists(nested) {
+		add(nested)
+		if r2, err := filepath.EvalSymlinks(nested); err == nil {
+			add(r2)
+		}
+	}
+	return out
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

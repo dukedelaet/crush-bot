@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -39,6 +40,56 @@ func TestBwrapArgsNoHomeBind(t *testing.T) {
 				t.Fatalf("bound operator HOME %s", src)
 			}
 		}
+	}
+}
+
+func TestCrushRuntimePathsNpmLayout(t *testing.T) {
+	root := t.TempDir()
+	pkg := filepath.Join(root, "lib", "node_modules", "@charmland", "crush")
+	if err := os.MkdirAll(filepath.Join(pkg, "bin"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"lib.js", "run-crush.js", "package.json"} {
+		if err := os.WriteFile(filepath.Join(pkg, name), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(pkg, "bin", "crush"), []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bindir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bindir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(bindir, "crush")
+	if err := os.Symlink(filepath.Join(pkg, "run-crush.js"), link); err != nil {
+		t.Fatal(err)
+	}
+	paths := crushRuntimePaths(link)
+	joined := strings.Join(paths, "\n")
+	if !strings.Contains(joined, pkg) {
+		t.Fatalf("package dir missing from %v", paths)
+	}
+}
+
+func TestBwrapArgsBindsCrushPackageDir(t *testing.T) {
+	root := t.TempDir()
+	pkg := filepath.Join(root, "crush-pkg")
+	if err := os.MkdirAll(pkg, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(pkg, "run-crush.js")
+	if err := os.WriteFile(script, []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pkg, "lib.js"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bot := roster.Bot{Slug: "coder", Tools: roster.Tools{Bash: true}}
+	args := BwrapArgs(script, []string{"run", "hi"}, bot, root)
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, pkg) {
+		t.Fatalf("expected ro-bind of package dir in %s", joined)
 	}
 }
 
