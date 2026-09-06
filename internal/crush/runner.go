@@ -407,13 +407,30 @@ func LookPath(configured string) (string, error) {
 		if _, err := os.Stat(configured); err != nil {
 			return "", fmt.Errorf("crush_path %s: %w", configured, err)
 		}
-		return configured, nil
+		return preferNative(configured), nil
 	}
 	p, err := exec.LookPath(configured)
 	if err != nil {
 		return "", fmt.Errorf("crush not found on PATH (%s)", configured)
 	}
-	return p, nil
+	return preferNative(p), nil
+}
+
+// preferNative follows an npm wrapper (run-crush.js) to bin/crush so the
+// Go TUI owns the PTY instead of Node spawnSync.
+func preferNative(bin string) string {
+	real, err := filepath.EvalSymlinks(bin)
+	if err != nil {
+		return bin
+	}
+	nested := filepath.Join(filepath.Dir(real), "bin", "crush")
+	if st, err := os.Stat(nested); err == nil && !st.IsDir() {
+		if r2, err := filepath.EvalSymlinks(nested); err == nil {
+			return r2
+		}
+		return nested
+	}
+	return bin
 }
 
 func IsBusy(err error) bool {

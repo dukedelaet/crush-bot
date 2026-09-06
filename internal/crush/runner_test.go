@@ -106,3 +106,26 @@ func TestOverlayEnvReplacesTERM(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+func TestPreferNativeNpmWrapper(t *testing.T) {
+	root := t.TempDir()
+	pkg := filepath.Join(root, "lib", "node_modules", "@charmland", "crush")
+	if err := os.MkdirAll(filepath.Join(pkg, "bin"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pkg, "run-crush.js"), []byte("js"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	native := filepath.Join(pkg, "bin", "crush")
+	if err := os.WriteFile(native, []byte("elf"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "crush")
+	if err := os.Symlink(filepath.Join(pkg, "run-crush.js"), link); err != nil {
+		t.Fatal(err)
+	}
+	got := preferNative(link)
+	if got != native {
+		t.Fatalf("got %s want %s", got, native)
+	}
+}

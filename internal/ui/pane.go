@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -79,9 +80,16 @@ func openCrushPane(home string, bot roster.Bot, w, h int) (*crushPane, tea.Cmd, 
 		h:      h,
 	}
 	go pane.copyOut()
+	go pane.copyIn()
 	go pane.reap()
-	return pane, pane.listen(), nil
+	return pane, tea.Batch(pane.listen(), paneTick()), nil
 }
+
+func paneTick() tea.Cmd {
+	return tea.Tick(50*time.Millisecond, func(time.Time) tea.Msg { return paneTickMsg{} })
+}
+
+type paneTickMsg struct{}
 
 func (p *crushPane) listen() tea.Cmd {
 	return func() tea.Msg {
@@ -91,6 +99,13 @@ func (p *crushPane) listen() tea.Cmd {
 		}
 		return msg
 	}
+}
+
+func (p *crushPane) copyIn() {
+	if p.em == nil || p.master == nil {
+		return
+	}
+	_, _ = io.Copy(p.master, p.em)
 }
 
 func (p *crushPane) copyOut() {
@@ -156,7 +171,11 @@ func (p *crushPane) render() string {
 	if p == nil || p.em == nil {
 		return ""
 	}
-	return p.em.Render()
+	s := p.em.Render()
+	if strings.TrimSpace(p.em.String()) == "" {
+		return ""
+	}
+	return s
 }
 
 func (p *crushPane) close() {

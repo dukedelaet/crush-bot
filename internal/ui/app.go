@@ -142,6 +142,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.pane != nil {
 			return m, m.pane.listen()
 		}
+	case paneTickMsg:
+		if m.pane != nil && !m.pane.dead {
+			return m, paneTick()
+		}
 	case paneExitMsg:
 		if m.pane != nil && (msg.slug == "" || msg.slug == m.pane.slug) {
 			m.pane.dead = true
@@ -339,12 +343,22 @@ func (m Model) crushView(width, height int) string {
 	var body string
 	if m.pane != nil {
 		body = m.pane.render()
+		if body == "" {
+			body = mutedStyle.Render("starting Crush…")
+		}
 	} else if len(m.rows) == 0 {
 		body = mutedStyle.Render("spawn a bot, then press enter")
 	} else {
 		body = mutedStyle.Render("press enter to open Crush")
 	}
-	return paneStyle.Width(width).Height(height).MaxHeight(height).MaxWidth(width).Render(body)
+	lines := strings.Split(body, "\n")
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m Model) divider(height int) string {
