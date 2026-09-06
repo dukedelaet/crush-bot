@@ -210,7 +210,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if isCtrl(msg, 'q') {
 			return m.quitHost()
 		}
-		if isCtrl(msg, 'g') {
+		if isCtrl(msg, 'g') || isCtrl(msg, 'b') {
 			if m.focus == focusChat || m.focus == focusInbox {
 				m.focus = focusSide
 				m.status = "list focused — q quits"
@@ -369,7 +369,7 @@ func (m Model) quitHost() (tea.Model, tea.Cmd) {
 
 func (m *Model) sizeChat() {
 	_, w, h := layout(m.width, m.height)
-	th := h - 3
+	th := h - 2
 	if th < 3 {
 		th = 3
 	}
@@ -458,6 +458,7 @@ func (m Model) View() tea.View {
 	frame := lipgloss.JoinVertical(lipgloss.Left, body, help)
 	v := tea.NewView(frame)
 	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
 
@@ -514,10 +515,6 @@ func (m Model) crushView(width, height int) string {
 			lines = append(lines, "")
 		}
 		return strings.Join(lines[:height], "\n")
-	}
-	th := height - 3
-	if th < 1 {
-		th = 1
 	}
 	head := selStyle.Render("@"+m.chatSlug) + "  " + mutedStyle.Render("session")
 	if m.chatBusy {
