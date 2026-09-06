@@ -44,6 +44,10 @@ const handledFS = accessFSExecute | accessFSWriteFile | accessFSReadFile | acces
 const accessRO = accessFSExecute | accessFSReadFile | accessFSReadDir
 const accessRW = handledFS
 
+// File-only rights. Directory bits (READ_DIR, MAKE_*, REMOVE_*) on a regular
+// file make landlock_add_rule return EINVAL.
+const accessFile = accessFSExecute | accessFSWriteFile | accessFSReadFile
+
 type rulesetAttr struct {
 	HandledAccessFS uint64
 }
@@ -78,7 +82,11 @@ func applyLandlock(bot roster.Bot, root, crushBin, self string) error {
 		ro = append(ro, self)
 	}
 	home := roster.Home(root, bot.Slug)
-	rw := []string{home, "/tmp", filepath.Join(root, "needs_you.jsonl")}
+	needs := filepath.Join(root, "needs_you.jsonl")
+	if _, err := os.Stat(needs); os.IsNotExist(err) {
+		_ = os.WriteFile(needs, nil, 0o600)
+	}
+	rw := []string{home, "/tmp", needs}
 	if bot.Project != "" {
 		rw = append(rw, bot.Project)
 	}
@@ -87,7 +95,9 @@ func applyLandlock(bot roster.Bot, root, crushBin, self string) error {
 		if b.Slug == bot.Slug {
 			continue
 		}
-		rw = append(rw, filepath.Join(roster.Home(root, b.Slug), "inbox", "pending"))
+		pend := filepath.Join(roster.Home(root, b.Slug), "inbox", "pending")
+		_ = os.MkdirAll(pend, 0o700)
+		rw = append(rw, pend)
 	}
 	for _, p := range ro {
 		_ = addPath(fd, p, accessRO)
@@ -110,7 +120,14 @@ func addPath(ruleset int, path string, access uint64) error {
 	if path == "" {
 		return nil
 	}
-	if _, err := os.Stat(path); err != nil {
+	st, err := os.Stat(path)
+	if err != nil {
+		return nil
+	}
+	if !st.IsDir() {
+		access &= accessFile
+	}
+	if access == 0 {
 		return nil
 	}
 	f, err := os.OpenFile(path, unix.O_PATH|unix.O_CLOEXEC, 0)
