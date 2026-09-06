@@ -190,28 +190,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleMouse("wheel", msg.Mouse())
 	case tea.MouseMotionMsg:
 		return m.handleMouse("motion", msg.Mouse())
+	case tea.InterruptMsg:
+		return m.quitHost()
 	case tea.KeyPressMsg:
-		if msg.String() == "ctrl+g" {
-			if m.pane != nil {
+		if isCtrl(msg, 'q') {
+			return m.quitHost()
+		}
+		if isCtrl(msg, 'g') || isCtrl(msg, 'b') {
+			if m.pane != nil && !m.pane.dead {
 				if m.focus == focusCrush {
 					m.focus = focusSide
+					m.status = "list focused — q quits"
 				} else {
 					m.focus = focusCrush
 				}
 			}
 			return m, nil
 		}
-		if m.focus == focusCrush && m.pane != nil {
+		if m.focus == focusCrush && m.pane != nil && !m.pane.dead {
 			m.pane.sendKey(msg)
 			return m, nil
 		}
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
-			if m.pane != nil {
-				m.pane.close()
-				m.pane = nil
-			}
-			return m, tea.Quit
+			return m.quitHost()
 		case "j", "down":
 			if len(m.rows) > 0 {
 				m.cursor = (m.cursor + 1) % len(m.rows)
@@ -260,6 +262,14 @@ func (m Model) handleMouse(kind string, mouse tea.Mouse) (tea.Model, tea.Cmd) {
 	}
 	m.pane.sendMouse(kind, tea.Mouse{X: mx, Y: my, Button: mouse.Button, Mod: mouse.Mod})
 	return m, nil
+}
+
+func (m Model) quitHost() (tea.Model, tea.Cmd) {
+	if m.pane != nil {
+		m.pane.close()
+		m.pane = nil
+	}
+	return m, tea.Quit
 }
 
 func (m Model) openSelected() (tea.Model, tea.Cmd) {
@@ -373,8 +383,9 @@ func (m Model) divider(height int) string {
 
 func (m Model) helpView(width int) string {
 	var s string
-	if m.focus == focusCrush && m.pane != nil {
-		s = fmt.Sprintf("%s sidebar   keys go to Crush", keyStyle.Render("ctrl+g"))
+	if m.focus == focusCrush && m.pane != nil && !m.pane.dead {
+		s = fmt.Sprintf("%s list  %s quit crushbot   (other keys go to Crush)",
+			keyStyle.Render("ctrl+g"), keyStyle.Render("ctrl+q"))
 	} else {
 		s = fmt.Sprintf("%s move  %s open  %s crush  %s new  %s refresh  %s quit",
 			keyStyle.Render("j/k"), keyStyle.Render("enter"), keyStyle.Render("ctrl+g"),
@@ -418,7 +429,12 @@ func (w *spawnWizard) SetStdout(o io.Writer) { w.out = o }
 func (w *spawnWizard) SetStderr(e io.Writer) { w.err = e }
 
 func Run(home string) error {
-	p := tea.NewProgram(New(home))
+	p := tea.NewProgram(New(home), tea.WithFilter(func(_ tea.Model, msg tea.Msg) tea.Msg {
+		if _, ok := msg.(tea.InterruptMsg); ok {
+			return tea.KeyPressMsg{Mod: tea.ModCtrl, Code: 'q'}
+		}
+		return msg
+	}))
 	_, err := p.Run()
 	return err
 }

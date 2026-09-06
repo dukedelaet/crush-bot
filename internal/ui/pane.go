@@ -61,7 +61,10 @@ func openCrushPane(home string, bot roster.Bot, w, h int) (*crushPane, tea.Cmd, 
 		return nil, nil, err
 	}
 	cmd := chat.Cmd
-	master, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: uint16(h), Cols: uint16(w)})
+	// Setsid only: Setctty on the child PTY can steal the host TTY so crushbot
+	// stops receiving keys (ctrl+g / q appear to do nothing).
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	master, err := pty.StartWithAttrs(cmd, &pty.Winsize{Rows: uint16(h), Cols: uint16(w)}, cmd.SysProcAttr)
 	if err != nil {
 		chat.Close()
 		return nil, nil, err
