@@ -24,6 +24,7 @@ const (
 	maxSideW   = 28
 	focusSide  = 0
 	focusCrush = 1
+	focusInbox = 2
 )
 
 var (
@@ -53,6 +54,8 @@ type Model struct {
 	status        string
 	focus         int
 	pane          *crushPane
+	showInbox     bool
+	inbox         inboxState
 }
 
 func New(home string) Model {
@@ -86,6 +89,22 @@ func (m *Model) reload() {
 	} else {
 		m.status = "daemon down — crushbot daemon start"
 	}
+	if m.showInbox {
+		m.reloadInbox()
+	}
+}
+
+func (m *Model) reloadInbox() {
+	if len(m.rows) == 0 {
+		m.inbox = inboxState{}
+		return
+	}
+	slug := m.rows[m.cursor].bot.Slug
+	folder, cursor := m.inbox.folder, m.inbox.cursor
+	m.inbox = loadInbox(m.home, slug)
+	m.inbox.folder = folder
+	m.inbox.cursor = cursor
+	m.inbox.clamp()
 }
 
 func (m Model) Init() tea.Cmd { return nil }
@@ -197,13 +216,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.quitHost()
 		}
 		if isCtrl(msg, 'g') || isCtrl(msg, 'b') {
+			if m.focus == focusCrush || m.focus == focusInbox {
+				m.focus = focusSide
+				m.status = "list focused — q quits"
+				return m, nil
+			}
 			if m.pane != nil && !m.pane.dead {
-				if m.focus == focusCrush {
-					m.focus = focusSide
-					m.status = "list focused — q quits"
-				} else {
-					m.focus = focusCrush
-				}
+				m.showInbox = false
+				m.focus = focusCrush
 			}
 			return m, nil
 		}
@@ -212,15 +232,48 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		switch msg.String() {
-		case "q", "ctrl+c", "esc":
+		case "q", "ctrl+c":
+			return m.quitHost()
+		case "esc":
+			if m.focus == focusInbox {
+				m.focus = focusSide
+				return m, nil
+			}
 			return m.quitHost()
 		case "j", "down":
-			if len(m.rows) > 0 {
+			if m.focus == focusInbox {
+				m.inbox.move(1)
+			} else if len(m.rows) > 0 {
 				m.cursor = (m.cursor + 1) % len(m.rows)
+				if m.showInbox {
+					m.reloadInbox()
+				}
 			}
 		case "k", "up":
-			if len(m.rows) > 0 {
+			if m.focus == focusInbox {
+				m.inbox.move(-1)
+			} else if len(m.rows) > 0 {
 				m.cursor = (m.cursor - 1 + len(m.rows)) % len(m.rows)
+				if m.showInbox {
+					m.reloadInbox()
+				}
+			}
+		case "tab":
+			if m.focus == focusInbox || m.showInbox {
+				m.inbox.nextFolder()
+			}
+		case "i":
+			return m.openInbox()
+		case "R":
+			if m.focus == focusInbox && inboxFolders[m.inbox.folder] == "failed" {
+				if env, ok := m.inbox.selected(); ok {
+					if err := retryFailed(m.home, m.inbox.slug, env.ID); err != nil {
+						m.status = "retry failed: " + err.Error()
+					} else {
+						m.status = "retry " + env.ID + " → pending"
+						m.reload()
+					}
+				}
 			}
 		case "r":
 			m.reload()
@@ -251,6 +304,10 @@ func (m Model) handleMouse(kind string, mouse tea.Mouse) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.showInbox {
+		m.focus = focusInbox
+		return m, nil
+	}
 	if m.pane == nil {
 		return m, nil
 	}
@@ -261,6 +318,17 @@ func (m Model) handleMouse(kind string, mouse tea.Mouse) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.pane.sendMouse(kind, tea.Mouse{X: mx, Y: my, Button: mouse.Button, Mod: mouse.Mod})
+	return m, nil
+}
+
+func (m Model) openInbox() (tea.Model, tea.Cmd) {
+	if len(m.rows) == 0 {
+		return m, nil
+	}
+	m.showInbox = true
+	m.focus = focusInbox
+	m.reloadInbox()
+	m.status = "inbox @" + m.inbox.slug
 	return m, nil
 }
 
@@ -278,6 +346,7 @@ func (m Model) openSelected() (tea.Model, tea.Cmd) {
 	}
 	bot := m.rows[m.cursor].bot
 	if m.pane != nil && m.pane.slug == bot.Slug && !m.pane.dead {
+		m.showInbox = false
 		m.focus = focusCrush
 		return m, nil
 	}
@@ -293,6 +362,7 @@ func (m Model) openSelected() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.pane = pane
+	m.showInbox = false
 	m.focus = focusCrush
 	m.status = "crush @" + bot.Slug
 	return m, cmd
@@ -301,9 +371,9 @@ func (m Model) openSelected() (tea.Model, tea.Cmd) {
 func (m Model) View() tea.View {
 	sideW, crushW, bodyH := layout(m.width, m.height)
 	sidebar := m.sidebarView(sideW, bodyH)
-	crushPane := m.crushView(crushW, bodyH)
+	right := m.rightView(crushW, bodyH)
 	div := m.divider(bodyH)
-	body := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, div, crushPane)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, div, right)
 	help := m.helpView(m.width)
 	frame := lipgloss.JoinVertical(lipgloss.Left, body, help)
 	v := tea.NewView(frame)
@@ -349,6 +419,13 @@ func (m Model) sidebarView(width, height int) string {
 	return sideStyle.Width(width).Height(height).MaxHeight(height).MaxWidth(width).Render(b.String())
 }
 
+func (m Model) rightView(width, height int) string {
+	if m.showInbox && m.inbox.slug != "" {
+		return renderInbox(m.inbox, width, height)
+	}
+	return m.crushView(width, height)
+}
+
 func (m Model) crushView(width, height int) string {
 	var body string
 	if m.pane != nil {
@@ -373,7 +450,7 @@ func (m Model) crushView(width, height int) string {
 
 func (m Model) divider(height int) string {
 	st := divStyle
-	if m.focus == focusCrush {
+	if m.focus == focusCrush || m.focus == focusInbox {
 		st = divHotStyle
 	}
 	col := strings.Repeat("│\n", height)
@@ -383,12 +460,17 @@ func (m Model) divider(height int) string {
 
 func (m Model) helpView(width int) string {
 	var s string
-	if m.focus == focusCrush && m.pane != nil && !m.pane.dead {
+	switch {
+	case m.focus == focusCrush && m.pane != nil && !m.pane.dead:
 		s = fmt.Sprintf("%s list  %s quit crushbot   (other keys go to Crush)",
 			keyStyle.Render("ctrl+g"), keyStyle.Render("ctrl+q"))
-	} else {
-		s = fmt.Sprintf("%s move  %s open  %s crush  %s new  %s refresh  %s quit",
-			keyStyle.Render("j/k"), keyStyle.Render("enter"), keyStyle.Render("ctrl+g"),
+	case m.focus == focusInbox:
+		s = fmt.Sprintf("%s move  %s folder  %s crush  %s retry  %s list  %s quit",
+			keyStyle.Render("j/k"), keyStyle.Render("tab"), keyStyle.Render("enter"),
+			keyStyle.Render("R"), keyStyle.Render("esc"), keyStyle.Render("q"))
+	default:
+		s = fmt.Sprintf("%s move  %s crush  %s inbox  %s new  %s refresh  %s quit",
+			keyStyle.Render("j/k"), keyStyle.Render("enter"), keyStyle.Render("i"),
 			keyStyle.Render("n"), keyStyle.Render("r"), keyStyle.Render("q"))
 	}
 	return helpStyle.Width(width).MaxWidth(width).Render(s)
