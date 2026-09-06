@@ -71,4 +71,5 @@ Crush’s TUI has no roster `@`. Use crushbot:
 | `say` / `chat` | Talk to one bot under `turn.lock` |
 | `mention <bot> <target> <text>` | Wake `<bot>` and ask it to `message_bot` the target |
 | `broadcast <text>` | Hop-0 user DM to every visible bot |
-| `crushbot` | Mesh TUI (`j`/`k`, `enter` chat) |
+| `crushbot` | Mesh TUI (`j`/`k` scroll transcript, `enter` opens chat + prompt, `esc` returns to list) |
+| `crushbot chat <slug>` | Full Crush TUI under `turn.lock` |
