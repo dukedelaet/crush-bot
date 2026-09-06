@@ -87,3 +87,22 @@ func TestReclaimProcessing(t *testing.T) {
 		t.Fatalf("attempt changed: %s", body)
 	}
 }
+
+func TestOverlayEnvReplacesTERM(t *testing.T) {
+	got := overlayEnv([]string{"TERM=dumb", "PATH=/bin", "COLORTERM=no"}, "TERM=xterm-256color", "COLORTERM=truecolor")
+	foundTerm, foundPath, foundOld := false, false, false
+	for _, e := range got {
+		if e == "TERM=xterm-256color" {
+			foundTerm = true
+		}
+		if e == "TERM=dumb" {
+			foundOld = true
+		}
+		if e == "PATH=/bin" {
+			foundPath = true
+		}
+	}
+	if foundOld || !foundTerm || !foundPath {
+		t.Fatalf("got %v", got)
+	}
+}

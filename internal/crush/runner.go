@@ -265,8 +265,27 @@ func BeginChat(opts RunOpts) (*ChatSession, error) {
 	}
 	cmd := exec.Command(bin, args...)
 	cmd.Dir = home
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor")
+	cmd.Env = overlayEnv(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor")
 	return &ChatSession{Cmd: cmd, Home: home, Slug: opts.Bot.Slug, lock: l}, nil
+}
+
+// overlayEnv copies base, dropping keys that kv will set, then appends kv.
+// os.Getenv / C getenv use the first match, so appending TERM is not enough.
+func overlayEnv(base []string, kv ...string) []string {
+	drop := make(map[string]bool, len(kv))
+	for _, x := range kv {
+		k, _, _ := strings.Cut(x, "=")
+		drop[k] = true
+	}
+	out := make([]string, 0, len(base)+len(kv))
+	for _, e := range base {
+		k, _, _ := strings.Cut(e, "=")
+		if drop[k] {
+			continue
+		}
+		out = append(out, e)
+	}
+	return append(out, kv...)
 }
 
 func (s *ChatSession) Close() {

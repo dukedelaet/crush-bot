@@ -144,14 +144,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case paneExitMsg:
 		if m.pane != nil && (msg.slug == "" || msg.slug == m.pane.slug) {
-			m.pane.close()
-			m.pane = nil
+			m.pane.dead = true
 			m.focus = focusSide
 			m.reload()
-			if msg.err != nil {
-				m.status = "crush exited: " + msg.err.Error()
+			if e := formatPaneErr(msg.err); e != "" {
+				m.status = "crush exited: " + e
+				if line := lastSnapLine(msg.snap); line != "" {
+					m.status += " — " + line
+				}
 			} else {
 				m.status = "crush closed"
+				m.pane.close()
+				m.pane = nil
 			}
 		}
 	case spawnDoneMsg:
@@ -259,7 +263,7 @@ func (m Model) openSelected() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	bot := m.rows[m.cursor].bot
-	if m.pane != nil && m.pane.slug == bot.Slug {
+	if m.pane != nil && m.pane.slug == bot.Slug && !m.pane.dead {
 		m.focus = focusCrush
 		return m, nil
 	}
